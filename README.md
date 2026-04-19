@@ -5,9 +5,12 @@ Esta extensão permite controlar remotamente o VS Code (Cursor/Antigravity) via 
 ## ✨ Recursos
 
 - **Premium UI:** Interface mobile moderna com modo escuro, glassmorphism e animações suaves.
-- **Real-time Streaming (🛠️ TODO):** Veja a resposta da IA no seu celular em tempo real enquanto ela é gerada no PC.
 - **Auto IP Discovery:** Mostra o IP local para facilitar a conexão sem depender de DNS local (.local).
 - **Status Bar Integration:** Veja o status da conexão diretamente na barra de status do VS Code.
+
+## 📌 Próximas Funcionalidades (Roadmap)
+
+- **Real-time Streaming:** Veja a resposta da IA no seu celular em tempo real enquanto ela é gerada no PC. (🛠️ TODO)
 
 ## 🚀 Como Usar
 
