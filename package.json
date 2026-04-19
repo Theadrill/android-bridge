@@ -1,0 +1,38 @@
+{
+  "name": "android-bridge",
+  "displayName": "Android Remote Bridge",
+  "description": "Ponte de comunicação para entrada de texto via Android",
+  "version": "1.0.0",
+  "publisher": "antigravity",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "android-bridge.start",
+        "title": "Start Android Bridge"
+      }
+    ]
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "node ./test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "16.x",
+    "eslint": "^8.41.0"
+  },
+  "dependencies": {
+    "ws": "^8.13.0"
+  }
+}
