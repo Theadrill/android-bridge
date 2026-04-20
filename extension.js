@@ -308,7 +308,7 @@ async function activate(context) {
 }
 
 function getWebpageContent(ip, port) {
-    return \`
+    return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -729,12 +729,12 @@ function getWebpageContent(ip, port) {
                 history.forEach(item => {
                     const div = document.createElement('div');
                     div.className = 'history-item';
-                    div.innerHTML = \\\`
-                        <div class="history-text">\\\${escapeHtml(item.text)}</div>
-                        <button class="copy-btn" onclick="copyToInput('\\\${item.id}', event)" title="Copiar para o input">
+                    div.innerHTML = \`
+                        <div class="history-text">\${escapeHtml(item.text)}</div>
+                        <button class="copy-btn" onclick="copyToInput('\${item.id}', event)" title="Copiar para o input">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
-                    \\\`;
+                    \`;
                     container.appendChild(div);
                 });
 
@@ -1011,7 +1011,7 @@ function getWebpageContent(ip, port) {
             connect();
         </script>
     </body>
-    </html>\`;
+    </html>`;
 }
 
 function deactivate() {}
