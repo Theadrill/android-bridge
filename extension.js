@@ -2,6 +2,7 @@ const vscode = require('vscode');
 const WebSocket = require('ws');
 const http = require('http');
 const os = require('os');
+const clipboardy = require('clipboardy');
 
 let wss;
 let httpServer;
@@ -9,9 +10,9 @@ let outputChannel;
 
 async function activate(context) {
     outputChannel = vscode.window.createOutputChannel("Android Bridge");
-    outputChannel.appendLine("Android Bridge: Modo Clear Output Ativado");
+    outputChannel.appendLine("Android Bridge: Modo Combine-and-Send Ativado");
     
-    const port = 3000;
+    const port = 4500;
     const networkInterfaces = os.networkInterfaces();
     let localIp = '127.0.0.1';
 
@@ -35,26 +36,37 @@ async function activate(context) {
     wss = new WebSocket.Server({ server: httpServer });
 
     wss.on('connection', (ws) => {
-        outputChannel.appendLine("📱 Celular conectado!");
-
-        ws.on('message', async (message) => {
+        outputChannel.appendLine("📱 Celular conectado!");        ws.on('message', async (message) => {
             const msg = message.toString();
             outputChannel.appendLine(`>> Recebido: "${msg}"`);
             
             try {
-                // 1. FOCO NO CHAT
-                await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+                // 1. SIMULAÇÃO DE TECLADO (Recortar para limpar o input)
+                outputChannel.appendLine("Simulando Ctrl+A e Ctrl+X via Sistema...");
+                const { execSync } = require('child_process');
+                // ^a = Ctrl+A, ^x = Ctrl+X (Recortar)
+                const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^a'); Start-Sleep -Milliseconds 100; $wshell.SendKeys('^x')"`;
                 
-                // 2. ENVIO DEFINITIVO (Tentando o formato texto puro)
-                // Como apareceu [object Object], vamos mandar apenas a string msg
-                outputChannel.appendLine("Disparando comando Antigravity com texto puro...");
-                await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', msg);
+                try { execSync(psCommand); } catch (err) {}
                 
-                // Removemos o Clipboard e o Paste para não duplicar nem mandar msg em branco
+                await new Promise(resolve => setTimeout(resolve, 600));
                 
-                vscode.window.setStatusBarMessage(`✅ Antigravity: Mensagem Enviada`, 2000);
+                let existingContent = "";
+                try {
+                    existingContent = await vscode.env.clipboard.readText();
+                } catch (err) {}
+
+                // 2. COMBINA OS TEXTOS (Na mesma linha)
+                // Usamos um espaço se já houver conteúdo, para não grudar as palavras
+                const finalMsg = existingContent.trim() ? `${existingContent.trim()} ${msg.trim()}` : msg.trim();
+                outputChannel.appendLine(`Enviando pacote (Tamanho: ${finalMsg.length})`);
+                
+                // 3. ENVIO
+                await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', finalMsg);
+                
+                vscode.window.setStatusBarMessage(`✅ Recortado e Enviado`, 2000);
             } catch (e) {
-                outputChannel.appendLine(`Erro de envio: ${e.message}`);
+                outputChannel.appendLine(`Erro no fluxo: ${e.message}`);
             }
         });
     });

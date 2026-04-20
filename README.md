@@ -16,7 +16,7 @@ Esta extensão permite controlar remotamente o VS Code (Cursor/Antigravity) via 
 
 1.  Abra esta pasta no VS Code.
 2.  Pressione **F5** para iniciar a extensão em uma Janela de Desenvolvimento.
-3.  No seu Android, abra o navegador e acesse o endereço mostrado na notificação ou na Barra de Status (ex: `http://192.168.1.5:3000`).
+3.  No seu Android, abra o navegador e acesse o endereço mostrado na notificação ou na Barra de Status (ex: `http://192.168.1.5:4500`).
 4.  No PC, leve o cursor para onde deseja inserir texto (ex: Chat do Cursor/Antigravity).
 5.  No Android, digite sua mensagem e clique em **Enviar para o PC**.
 6.  O texto será enviado, o VS Code processará (pressionando Enter automaticamente) e o retorno da IA aparecerá no seu celular!

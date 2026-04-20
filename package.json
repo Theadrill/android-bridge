@@ -28,11 +28,12 @@
     "test": "node ./test/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.80.0",
     "@types/node": "16.x",
+    "@types/vscode": "^1.80.0",
     "eslint": "^8.41.0"
   },
   "dependencies": {
+    "clipboardy": "^5.3.1",
     "ws": "^8.13.0"
   }
 }
