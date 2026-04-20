@@ -111,15 +111,34 @@ async function activate(context) {
                     else if (data.action === 'PASTE') { keys = '^v'; actionLabel = 'Colar (Ctrl+V)'; }
                     else if (data.action === 'ENTER') { keys = '+{ENTER}'; actionLabel = 'Enter (Shift+Enter)'; }
                     else if (data.action === 'RESTART') {
-                        outputChannel.appendLine(`🔄 Iniciando Dev Restart (Modo Anterior)...`);
-                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $allWindows = Get-Process | Where-Object { $_.MainWindowTitle -like '*bridge*' -and $_.MainWindowTitle -notlike '*Extension Development Host*' }; if ($allWindows) { $wshell.AppActivate($allWindows[0].Id); Start-Sleep -Milliseconds 500; $wshell.SendKeys('^+{F5}') }"`;
-                        try { 
-                            execSync(psCommand); 
-                            outputChannel.appendLine(`🚀 Atalho Ctrl+Shift+F5 enviado via Shell.`);
+                        outputChannel.appendLine(`🔄 Iniciando Dev Restart (via Node Window Manager)...`);
+                        try {
+                            const allWindows = windowManager.getWindows();
+                            const mainWindow = allWindows.find(w => 
+                                (w.getTitle().includes("android-bridge") || w.getTitle().includes("Visual Studio Code")) && 
+                                !w.getTitle().includes("Extension Development Host")
+                            );
+                            
+                            if (mainWindow) {
+                                outputChannel.appendLine(`🎯 Janela principal detectada: "${mainWindow.getTitle()}". Focando...`);
+                                mainWindow.bringToTop();
+                                
+                                // Pequeno delay para o Windows processar o foco antes do comando de teclado
+                                setTimeout(() => {
+                                    const { execSync } = require('child_process');
+                                    const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^+{F5}')"`;
+                                    try {
+                                        execSync(psCommand);
+                                        outputChannel.appendLine(`🚀 Atalho Ctrl+Shift+F5 enviado.`);
+                                    } catch (e) {}
+                                }, 500);
+                            } else {
+                                outputChannel.appendLine(`⚠️ Não foi possível encontrar a janela principal do VS Code.`);
+                            }
                         } catch (err) {
                             outputChannel.appendLine(`❌ Erro no restart: ${err.message}`);
                         }
-                        vscode.window.setStatusBarMessage(`✅ Dev Restart enviado`, 3000);
+                        vscode.window.setStatusBarMessage(`✅ Dev Restart disparado`, 3000);
                         return;
                     }
                     
@@ -166,7 +185,9 @@ async function activate(context) {
                 } catch (err) {}
 
                 // 2. COMBINA OS TEXTOS
-                const finalMsg = existingContent.trim() ? `${existingContent.trim()} ${msg.trim()}` : msg.trim();
+                const trimmedExisting = existingContent.replace(/\s+$/, '');
+                const hasNewLine = existingContent.endsWith('\n') || existingContent.endsWith('\r');
+                const finalMsg = trimmedExisting ? `${trimmedExisting}${hasNewLine ? '\n' : ' '}${msg.trim()}` : msg.trim();
                 
                 // 3. ENVIO
                 await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', finalMsg);
@@ -406,19 +427,19 @@ function getWebpageContent(ip, port) {
                 inputmode="text"></textarea>
             
             <div class="button-dock">
-                <button class="dock-btn" onpointerdown="sendAction('RESTART')" title="Dev Restart" style="color: #fbbf24;">
+                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('RESTART')" title="Dev Restart" style="color: #fbbf24;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
                 </button>
-                <button class="dock-btn" onpointerdown="sendAction('COPY')" title="Copiar">
+                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('COPY')" title="Copiar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                 </button>
-                <button class="dock-btn" onpointerdown="sendAction('PASTE')" title="Colar">
+                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('PASTE')" title="Colar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
                 </button>
-                <button class="dock-btn" onpointerdown="sendAction('ENTER')" title="Pular Linha">
+                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('ENTER')" title="Pular Linha">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>
                 </button>
-                <button class="send-btn" onpointerdown="send()">
+                <button class="send-btn" onpointerdown="event.preventDefault(); send()">
                     <span>ENVIAR</span>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
@@ -502,6 +523,7 @@ function getWebpageContent(ip, port) {
             }
 
             async function copyToInput(id, event) {
+                event && event.preventDefault();
                 const item = window.currentHistory.find(h => h.id == id);
                 if (item) {
                     const textarea = document.getElementById('msg');
