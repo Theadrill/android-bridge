@@ -104,12 +104,26 @@ async function activate(context) {
                 // Tratamento de Simulação de Teclado (Novos Botões)
                 if (data.type === 'KEY_SIM') {
                     const { execSync } = require('child_process');
-                    let keys = '';
                     let actionLabel = '';
                     
-                    if (data.action === 'COPY') { keys = '^c'; actionLabel = 'Copiar (Ctrl+C)'; }
-                    else if (data.action === 'PASTE') { keys = '^v'; actionLabel = 'Colar (Ctrl+V)'; }
-                    else if (data.action === 'ENTER') { keys = '+{ENTER}'; actionLabel = 'Enter (Shift+Enter)'; }
+                    if (data.action === 'COPY') {
+                        await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
+                        actionLabel = 'Copiar (VS Code)';
+                    }
+                    else if (data.action === 'PASTE') {
+                        await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+                        actionLabel = 'Colar (VS Code)';
+                    }
+                    else if (data.action === 'ENTER') {
+                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('+{ENTER}')"`;
+                        try { execSync(psCommand); } catch (err) {}
+                        actionLabel = 'Enter (Shift+Enter)';
+                    }
+                    else if (data.action === 'BACKSPACE') {
+                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('{BACKSPACE}')"`;
+                        try { execSync(psCommand); } catch (err) {}
+                        actionLabel = 'Backspace';
+                    }
                     else if (data.action === 'RESTART') {
                         outputChannel.appendLine(`🔄 Iniciando Dev Restart (via Node Window Manager)...`);
                         try {
@@ -142,11 +156,9 @@ async function activate(context) {
                         return;
                     }
                     
-                    if (keys) {
-                        outputChannel.appendLine(`⌨️ Simulando Tecla: ${actionLabel}`);
-                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('${keys}')"`;
-                        try { execSync(psCommand); } catch (err) {}
-                        vscode.window.setStatusBarMessage(`✅ Atalho enviado: ${actionLabel}`, 2000);
+                    if (actionLabel) {
+                        outputChannel.appendLine(`⌨️ Ação: ${actionLabel}`);
+                        vscode.window.setStatusBarMessage(`✅ Comando enviado: ${actionLabel}`, 2000);
                     }
                     return;
                 }
@@ -171,6 +183,7 @@ async function activate(context) {
                 });
                 
                 // 1. SIMULAÇÃO DE TECLADO (Recortar para limpar o input)
+                // REVERTIDO PARA POWERSHELL CONFORME SOLICITADO
                 outputChannel.appendLine("Simulando Ctrl+A e Ctrl+X via Sistema...");
                 const { execSync } = require('child_process');
                 const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^a'); Start-Sleep -Milliseconds 100; $wshell.SendKeys('^x')"`;
@@ -209,7 +222,7 @@ async function activate(context) {
 }
 
 function getWebpageContent(ip, port) {
-    return `
+    return \`
     <!DOCTYPE html>
     <html>
     <head>
@@ -362,7 +375,7 @@ function getWebpageContent(ip, port) {
             }
 
             .send-btn { 
-                flex: 1.5;
+                width: 44px;
                 height: 44px;
                 background: var(--primary); 
                 color: white; 
@@ -371,12 +384,7 @@ function getWebpageContent(ip, port) {
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                gap: 8px;
-                font-size: 13px; 
-                font-weight: 800;
                 box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
                 touch-action: manipulation;
                 user-select: none;
                 -webkit-tap-highlight-color: transparent;
@@ -436,12 +444,11 @@ function getWebpageContent(ip, port) {
                 <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('PASTE')" title="Colar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
                 </button>
-                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('ENTER')" title="Pular Linha">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>
+                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('BACKSPACE')" title="Backspace">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
                 </button>
                 <button class="send-btn" onpointerdown="event.preventDefault(); send()">
-                    <span>ENVIAR</span>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                 </button>
             </div>
         </div>
@@ -500,12 +507,12 @@ function getWebpageContent(ip, port) {
                 history.forEach(item => {
                     const div = document.createElement('div');
                     div.className = 'history-item';
-                    div.innerHTML = \`
-                        <div class="history-text">\${escapeHtml(item.text)}</div>
-                        <button class="copy-btn" onclick="copyToInput('\${item.id}', event)" title="Copiar para o input">
+                    div.innerHTML = \\\`
+                        <div class="history-text">\\\${escapeHtml(item.text)}</div>
+                        <button class="copy-btn" onclick="copyToInput('\\\${item.id}', event)" title="Copiar para o input">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                         </button>
-                    \`;
+                    \\\`;
                     container.appendChild(div);
                 });
 
@@ -611,7 +618,7 @@ function getWebpageContent(ip, port) {
             connect();
         </script>
     </body>
-    </html>`;
+    </html>\`;
 }
 
 function deactivate() {}
