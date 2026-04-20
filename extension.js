@@ -11,6 +11,21 @@ let httpServer;
 let outputChannel;
 let history = [];
 const historyPath = path.join(__dirname, 'history.json');
+const exclusionsPath = path.join(__dirname, 'exclusions.json');
+
+let WINDOW_EXCLUSION_LIST = [];
+
+function loadExclusions() {
+    try {
+        if (fs.existsSync(exclusionsPath)) {
+            const data = fs.readFileSync(exclusionsPath, 'utf8');
+            WINDOW_EXCLUSION_LIST = JSON.parse(data);
+        }
+    } catch (e) {
+        if (outputChannel) outputChannel.appendLine(`Erro ao carregar exclusões: ${e.message}`);
+    }
+}
+
 
 function loadHistory() {
     try {
@@ -52,6 +67,7 @@ async function activate(context) {
     }, 1500);
     
     loadHistory();
+    loadExclusions();
     
     const port = 4500;
     const networkInterfaces = os.networkInterfaces();
@@ -124,8 +140,13 @@ async function activate(context) {
                         try { execSync(psCommand); } catch (err) {}
                         actionLabel = 'Backspace';
                     }
-                    else if (data.action === 'RESTART') {
-                        outputChannel.appendLine(`🔄 Iniciando Dev Restart (via Node Window Manager)...`);
+                    else if (data.action === 'SAVE') {
+                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^s')"`;
+                        try { execSync(psCommand); } catch (err) {}
+                        actionLabel = 'Salvar (Ctrl+S)';
+                    }
+                    else if (data.action === 'RESTART_EXT') {
+                        outputChannel.appendLine(`🔄 Reiniciando Extensão (Debug)...`);
                         try {
                             const allWindows = windowManager.getWindows();
                             const mainWindow = allWindows.find(w => 
@@ -134,25 +155,77 @@ async function activate(context) {
                             );
                             
                             if (mainWindow) {
-                                outputChannel.appendLine(`🎯 Janela principal detectada: "${mainWindow.getTitle()}". Focando...`);
                                 mainWindow.bringToTop();
-                                
-                                // Pequeno delay para o Windows processar o foco antes do comando de teclado
                                 setTimeout(() => {
                                     const { execSync } = require('child_process');
                                     const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^+{F5}')"`;
-                                    try {
-                                        execSync(psCommand);
-                                        outputChannel.appendLine(`🚀 Atalho Ctrl+Shift+F5 enviado.`);
-                                    } catch (e) {}
+                                    try { execSync(psCommand); } catch (e) {}
                                 }, 500);
-                            } else {
-                                outputChannel.appendLine(`⚠️ Não foi possível encontrar a janela principal do VS Code.`);
                             }
-                        } catch (err) {
-                            outputChannel.appendLine(`❌ Erro no restart: ${err.message}`);
+                        } catch (err) {}
+                        vscode.window.setStatusBarMessage(`✅ Extension Restart disparado`, 3000);
+                        return;
+                    }
+                    else if (data.action === 'GET_WINDOWS') {
+                        loadExclusions();
+                        try {
+                            const allWindows = windowManager.getWindows();
+                            let uniqueWindows = [];
+                            let seenTitles = new Set();
+
+                            for (const win of allWindows) {
+                                let title = "";
+                                try { title = win.getTitle(); } catch(e) { continue; }
+                                
+                                if (!title || title.trim() === "") continue;
+
+                                const lowerTitle = title.toLowerCase();
+                                const shouldExclude = WINDOW_EXCLUSION_LIST.some(ex => 
+                                    lowerTitle.includes(ex.toLowerCase())
+                                );
+                                
+                                if (!shouldExclude && !seenTitles.has(title)) {
+                                    try {
+                                        // Filtramos janelas que não são "reais" ou visíveis
+                                        if (win.isVisible()) {
+                                            uniqueWindows.push({
+                                                id: win.processId,
+                                                title: title
+                                            });
+                                            seenTitles.add(title);
+                                        }
+                                    } catch (e) {}
+                                }
+                            }
+
+                            // Ordena por título para facilitar no celular
+                            uniqueWindows.sort((a, b) => a.title.localeCompare(b.title));
+
+                            outputChannel.appendLine(`🪟 Alt-Tab: Encontradas ${uniqueWindows.length} janelas.`);
+                            ws.send(JSON.stringify({ type: 'WINDOWS_LIST', payload: uniqueWindows }));
+                        } catch (e) {
+                            outputChannel.appendLine(`⚠️ Erro ao listar janelas: ${e.message}`);
                         }
-                        vscode.window.setStatusBarMessage(`✅ Dev Restart disparado`, 3000);
+                        return;
+                    }
+                    else if (data.action === 'SWITCH_WINDOW') {
+                        try {
+                            const allWindows = windowManager.getWindows();
+                            // Buscamos pelo PID ou Título (o PowerShell nos deu o PID como id)
+                            const targetWindow = allWindows.find(w => w.processId === data.windowId || w.getTitle() === data.title);
+                            if (targetWindow) {
+                                targetWindow.bringToTop();
+                                outputChannel.appendLine(`🎯 Focando na janela: ${data.title}`);
+                                vscode.window.setStatusBarMessage(`✅ Focando: ${data.title}`, 2000);
+                            } else {
+                                // Fallback via powershell se o windowManager falhar
+                                const { execSync } = require('child_process');
+                                const focusCmd = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.AppActivate(${data.windowId})"`;
+                                try { execSync(focusCmd); } catch (err) {}
+                            }
+                        } catch (e) {
+                            outputChannel.appendLine(`⚠️ Erro ao focar janela: ${e.message}`);
+                        }
                         return;
                     }
                     
@@ -160,6 +233,19 @@ async function activate(context) {
                         outputChannel.appendLine(`⌨️ Ação: ${actionLabel}`);
                         vscode.window.setStatusBarMessage(`✅ Comando enviado: ${actionLabel}`, 2000);
                     }
+                    return;
+                }
+
+                if (data.type === 'FREE_TEXT') {
+                    const msg = data.msg;
+                    if (!msg) return;
+                    outputChannel.appendLine(`⌨️ Digitação Livre: "${msg}"`);
+                    
+                    // Envia o texto via clipboard + paste para ser mais rápido e preciso no foco atual
+                    await vscode.env.clipboard.writeText(msg);
+                    await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+                    
+                    vscode.window.setStatusBarMessage(`✅ Texto enviado ao foco`, 2000);
                     return;
                 }
 
@@ -238,6 +324,7 @@ function getWebpageContent(ip, port) {
                 --text-dim: #94a3b8;
                 --border: #2d2d33;
             }
+            * { box-sizing: border-box; }
             body { 
                 font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
                 background: var(--bg); 
@@ -375,19 +462,25 @@ function getWebpageContent(ip, port) {
             }
 
             .send-btn { 
-                width: 44px;
-                height: 44px;
+                width: 100%;
+                height: 50px;
                 background: var(--primary); 
                 color: white; 
                 border: none; 
-                border-radius: 10px; 
+                border-radius: 12px; 
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                gap: 10px;
+                font-weight: 700;
+                font-size: 14px;
+                letter-spacing: 1px;
                 box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
                 touch-action: manipulation;
                 user-select: none;
                 -webkit-tap-highlight-color: transparent;
+                margin-top: 12px;
+                text-transform: uppercase;
             }
 
             .send-btn:active {
@@ -409,10 +502,127 @@ function getWebpageContent(ip, port) {
                 overflow: hidden;
                 border: 1px solid #6366f122;
             }
+
+            /* Modal Styles */
+            .modal-overlay {
+                display: none;
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0,0,0,0.85);
+                backdrop-filter: blur(4px);
+                z-index: 1000;
+                justify-content: center;
+                align-items: center;
+                padding: 0;
+            }
+
+            .modal {
+                background: var(--card);
+                border: 1px solid var(--border);
+                border-radius: 24px;
+                padding: 24px;
+                width: 95%;
+                max-width: 320px;
+                text-align: center;
+                box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+                animation: modalScale 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+                display: flex;
+                flex-direction: column;
+                max-height: 80vh;
+            }
+
+            .modal.full-width {
+                width: 100%;
+                max-width: none;
+                border-radius: 0;
+                border-left: none;
+                border-right: none;
+            }
+
+            #modal-content {
+                overflow-y: auto;
+                padding-right: 5px;
+            }
+
+            #modal-content::-webkit-scrollbar { width: 4px; }
+            #modal-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+
+            @keyframes modalScale {
+                from { transform: scale(0.85); opacity: 0; }
+                to { transform: scale(1); opacity: 1; }
+            }
+
+            .modal h3 { margin: 0 0 15px 0; font-size: 18px; color: var(--primary); flex-shrink: 0; }
+
+            .modal-btn {
+                width: 100%;
+                min-height: 50px;
+                margin-bottom: 12px;
+                border: 1px solid var(--border);
+                border-radius: 12px;
+                background: #2d2d33;
+                color: white;
+                font-weight: 600;
+                font-size: 14px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+
+            .modal-btn.window-item {
+                font-size: 12px;
+                justify-content: flex-start;
+                padding: 0 15px;
+                text-align: left;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                display: block;
+                line-height: 50px;
+            }
+
+            .modal-btn:active { transform: scale(0.96); background: #3d3d45; }
+            .modal-btn.cancel { border: none; background: transparent; color: var(--text-dim); margin-top: 5px; flex-shrink: 0; }
         </style>
     </head>
     <body>
         <div id="status">Iniciando...</div>
+
+        <!-- Restart Modal -->
+        <div id="restart-modal" class="modal-overlay" onclick="closeModal(event)">
+            <div class="modal" onclick="event.stopPropagation()">
+                <h3 id="modal-title">OTHER ACTIONS</h3>
+                <div id="modal-content">
+                    <button class="modal-btn" onclick="execRestart('RESTART_EXT')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                        Restart Extension
+                    </button>
+                    <button class="modal-btn" onclick="execRestart('REFRESH_F5')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        Refresh (F5)
+                    </button>
+                    <button class="modal-btn" onclick="execRestart('RESTART_PROJECT')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                        Restart Project (npm)
+                    </button>
+                    <button class="modal-btn" onclick="getWindows()" style="color: #60a5fa;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        Alt Tab
+                    </button>
+                    <button class="modal-btn" onclick="openFreeWriting()" style="color: #c084fc;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        Escrever Livremente
+                    </button>
+                </div>
+                <button class="modal-btn cancel" onclick="closeModal()">CANCELAR</button>
+            </div>
+        </div>
         <div class="header">
             <h2>ANTIGRAVITY BRIDGE</h2>
         </div>
@@ -435,22 +645,30 @@ function getWebpageContent(ip, port) {
                 inputmode="text"></textarea>
             
             <div class="button-dock">
-                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('RESTART')" title="Dev Restart" style="color: #fbbf24;">
+                <button class="dock-btn" onclick="openModal()" title="Outras Ações" style="color: #fbbf24;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
                 </button>
+
                 <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('COPY')" title="Copiar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                 </button>
                 <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('PASTE')" title="Colar">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
                 </button>
+                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('ENTER')" title="Pular Linha" style="color: #10b981;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>
+                </button>
                 <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('BACKSPACE')" title="Backspace">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
                 </button>
-                <button class="send-btn" onpointerdown="event.preventDefault(); send()">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('SAVE')" title="Salvar (Ctrl+S)" style="color: #60a5fa;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
                 </button>
             </div>
+            <button class="send-btn" onpointerdown="event.preventDefault(); send()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                ENVIAR PROMPT
+            </button>
         </div>
 
         <script>
@@ -482,6 +700,10 @@ function getWebpageContent(ip, port) {
 
                     if(d.type === 'COMMAND' && d.action === 'REFRESH') {
                         window.location.reload();
+                    }
+
+                    if(d.type === 'WINDOWS_LIST') {
+                        renderWindowList(d.payload);
                     }
                 };
 
@@ -598,6 +820,177 @@ function getWebpageContent(ip, port) {
                     // Feedback tátil/visual simples no botão
                     window.navigator.vibrate && window.navigator.vibrate(10);
                 }
+            }
+
+            function openModal() {
+                const modalDiv = document.querySelector('.modal');
+                modalDiv.classList.remove('full-width');
+                const title = document.getElementById('modal-title');
+                const content = document.getElementById('modal-content');
+                title.innerText = 'OTHER ACTIONS';
+                content.innerHTML = \`
+                    <button class="modal-btn" onclick="execRestart('RESTART_EXT')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+                        Restart Extension
+                    </button>
+                    <button class="modal-btn" onclick="execRestart('REFRESH_F5')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        Refresh (F5)
+                    </button>
+                    <button class="modal-btn" onclick="execRestart('RESTART_PROJECT')">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                        Restart Project (npm)
+                    </button>
+                    <button class="modal-btn" onclick="getWindows()" style="color: #60a5fa;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        Alt Tab
+                    </button>
+                    <button class="modal-btn" onclick="openFreeWriting()" style="color: #c084fc;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                        Escrever Livremente
+                    </button>
+                \`;
+                document.getElementById('restart-modal').style.display = 'flex';
+                window.navigator.vibrate && window.navigator.vibrate(20);
+            }
+
+            function closeModal(e) {
+                document.getElementById('restart-modal').style.display = 'none';
+                document.querySelector('.modal').classList.remove('full-width');
+            }
+
+            function openAltTab() {
+                openModal();
+                getWindows();
+            }
+
+            function getWindows() {
+                if(ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'KEY_SIM', action: 'GET_WINDOWS' }));
+                    document.getElementById('modal-title').innerText = 'BUSCANDO JANELAS...';
+                }
+            }
+
+            function renderWindowList(windows) {
+                const title = document.getElementById('modal-title');
+                const content = document.getElementById('modal-content');
+                title.innerText = 'ALT TAB';
+                content.innerHTML = '';
+                
+                if (windows.length === 0) {
+                    content.innerHTML = '<div style="color: #666; padding: 20px;">Nenhuma janela encontrada</div>';
+                } else {
+                    windows.forEach(w => {
+                        const btn = document.createElement('button');
+                        btn.className = 'modal-btn window-item';
+                        btn.innerText = w.title;
+                        btn.onclick = () => switchWindow(w.id, w.title);
+                        content.appendChild(btn);
+                    });
+                }
+                
+                // Botão de Voltar
+                const backBtn = document.createElement('button');
+                backBtn.className = 'modal-btn';
+                backBtn.style.marginTop = '10px';
+                backBtn.style.background = 'transparent';
+                backBtn.style.borderColor = '#444';
+                backBtn.innerHTML = '← Voltar';
+                backBtn.onclick = openModal;
+                content.appendChild(backBtn);
+            }
+
+            function switchWindow(id, title) {
+                if(ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'KEY_SIM', action: 'SWITCH_WINDOW', windowId: id, title: title }));
+                    // Ao invés de fechar, volta para o menu principal de ações
+                    openModal();
+                }
+            }
+
+            function openFreeWriting() {
+                const modalDiv = document.querySelector('.modal');
+                modalDiv.classList.add('full-width');
+                const title = document.getElementById('modal-title');
+                const content = document.getElementById('modal-content');
+                title.innerText = 'ESCREVER LIVREMENTE';
+                content.innerHTML = \`
+                    <textarea id="free-msg" 
+                        placeholder="Digite texto livre para o PC..." 
+                        style="height: 100px; margin-bottom: 12px; font-size: 15px; background: rgba(255,255,255,0.03); color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; width: 100%; box-sizing: border-box; outline: none; font-family: inherit;"
+                        onkeydown="checkFreeEnter(event)"
+                        autocomplete="on" 
+                        autocorrect="on" 
+                        autocapitalize="none" 
+                        spellcheck="true"></textarea>
+                    
+                    <div class="button-dock" style="margin-bottom: 12px; gap: 6px;">
+                        <button class="dock-btn" onclick="openAltTab()" title="Alt Tab" style="color: #60a5fa;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        </button>
+                        <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('COPY')" title="Copiar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                        </button>
+                        <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('PASTE')" title="Colar">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
+                        </button>
+                        <button class="dock-btn" onpointerdown="event.preventDefault(); insertNewLine()" title="Pular Linha Local" style="color: #a78bfa;">
+                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 10L11 15"></path><path d="M6 10H15C17.2091 10 19 11.7909 19 14V18"></path></svg>
+                        </button>
+                        <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('ENTER')" title="Enter no PC" style="color: #10b981;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>
+                        </button>
+                        <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('BACKSPACE')" title="Backspace">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
+                        </button>
+                        <button class="dock-btn" onpointerdown="event.preventDefault(); sendAction('SAVE')" title="Salvar (Ctrl+S)" style="color: #60a5fa;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                        </button>
+                    </div>
+
+                    <button class="send-btn" onclick="sendFreeText()" style="margin-top: 0; height: 55px; background: #c084fc; box-shadow: 0 4px 14px 0 rgba(192, 132, 252, 0.3);">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                        ENVIAR TEXTO
+                    </button>
+
+                    <button class="modal-btn" onclick="openModal()" style="margin-top: 15px; background: transparent; border-color: #444; min-height: 40px;">
+                        ← Voltar
+                    </button>
+                \`;
+                // Foca no novo textarea
+                setTimeout(() => document.getElementById('free-msg').focus(), 300);
+            }
+
+            function sendFreeText() {
+                const m = document.getElementById('free-msg');
+                if(m.value.trim() && ws.readyState === WebSocket.OPEN){ 
+                    ws.send(JSON.stringify({ type: 'FREE_TEXT', msg: m.value })); 
+                    m.value = ''; 
+                    window.navigator.vibrate && window.navigator.vibrate(20);
+                }
+            }
+
+            function checkFreeEnter(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendFreeText();
+                }
+            }
+
+            function insertNewLine() {
+                const m = document.getElementById('free-msg');
+                const start = m.selectionStart;
+                const end = m.selectionEnd;
+                const top = m.scrollTop;
+                m.value = m.value.substring(0, start) + "\\n" + m.value.substring(end);
+                m.selectionStart = m.selectionEnd = start + 1;
+                m.scrollTop = top;
+                m.focus();
+            }
+
+            function execRestart(action) {
+                sendAction(action);
+                closeModal();
             }
 
             function scrollToBottom() {
