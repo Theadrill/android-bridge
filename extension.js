@@ -1053,10 +1053,17 @@ function getWebpageContent(ip, port) {
                         </button>
                     </div>
 
-                    <button class="send-btn" onclick="sendFreeText()" style="margin-top: 0; height: 55px; background: #c084fc; box-shadow: 0 4px 14px 0 rgba(192, 132, 252, 0.3);">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-                        ENVIAR TEXTO
-                    </button>
+                    <div style="display: flex; gap: 10px; margin-top: 0;">
+                        <button class="send-btn" onclick="sendFreeText()" style="flex: 1; margin: 0; height: 55px; background: #c084fc; box-shadow: 0 4px 14px 0 rgba(192, 132, 252, 0.3); font-size: 13px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                            ENVIAR TEXTO
+                        </button>
+
+                        <button class="send-btn" onpointerdown="event.preventDefault(); sendAction('ENTER')" style="flex: 1; margin: 0; height: 55px; background: #10b981; box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.3); font-size: 13px;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 4px;"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>
+                            ENVIAR ENTER
+                        </button>
+                    </div>
 
                     <button class="modal-btn" onclick="openModal()" style="margin-top: 15px; background: transparent; border-color: #444; min-height: 40px;">
                         ← Voltar
