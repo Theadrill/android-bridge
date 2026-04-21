@@ -1,14 +1,10 @@
-const vscode = require('vscode');
+﻿const vscode = require('vscode');
 const WebSocket = require('ws');
 const http = require('http');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
 const { windowManager } = require('node-window-manager');
-const { keyboard, Key } = require('@nut-tree-fork/nut-js');
-
-// Configura o nut-js para ser instantâneo (sem delay entre teclas)
-keyboard.config.autoDelayMs = 0;
 
 let wss;
 let httpServer;
@@ -26,7 +22,7 @@ function loadExclusions() {
             WINDOW_EXCLUSION_LIST = JSON.parse(data);
         }
     } catch (e) {
-        if (outputChannel) outputChannel.appendLine(`Erro ao carregar exclusões: ${e.message}`);
+        if (outputChannel) outputChannel.appendLine(`Erro ao carregar exclus├Áes: ${e.message}`);
     }
 }
 
@@ -36,7 +32,7 @@ function loadHistory() {
         if (fs.existsSync(historyPath)) {
             const data = fs.readFileSync(historyPath, 'utf8');
             history = JSON.parse(data);
-            // Garante que o histórico esteja sempre ordenado: mais antigo primeiro
+            // Garante que o hist├│rico esteja sempre ordenado: mais antigo primeiro
             history.sort((a, b) => a.id - b.id);
         }
     } catch (e) {
@@ -48,7 +44,7 @@ function saveHistory() {
     try {
         fs.writeFileSync(historyPath, JSON.stringify(history, null, 2));
     } catch (e) {
-        outputChannel.appendLine(`Erro ao salvar histórico: ${e.message}`);
+        outputChannel.appendLine(`Erro ao salvar hist├│rico: ${e.message}`);
     }
 }
 
@@ -56,17 +52,17 @@ async function activate(context) {
     outputChannel = vscode.window.createOutputChannel("Android Bridge");
     outputChannel.appendLine("Android Bridge: Modo Combine-and-Send Ativado");
     
-    // Lógica de Foco Automático no Startup (para o Extension Development Host)
+    // L├│gica de Foco Autom├ítico no Startup (para o Extension Development Host)
     setTimeout(() => {
         try {
             const allWindows = windowManager.getWindows();
             const devWindow = allWindows.find(w => w.getTitle().includes("Extension Development Host"));
             if (devWindow) {
-                outputChannel.appendLine(`🎯 Janela de Desenvolvimento detectada! Focando...`);
+                outputChannel.appendLine(`­ƒÄ» Janela de Desenvolvimento detectada! Focando...`);
                 devWindow.bringToTop();
             }
         } catch (e) {
-            outputChannel.appendLine(`⚠️ Erro ao tentar focar janela de dev: ${e.message}`);
+            outputChannel.appendLine(`ÔÜá´©Å Erro ao tentar focar janela de dev: ${e.message}`);
         }
     }, 1500);
     
@@ -97,9 +93,9 @@ async function activate(context) {
     wss = new WebSocket.Server({ server: httpServer });
 
     wss.on('connection', (ws) => {
-        outputChannel.appendLine("📱 Celular conectado!");
+        outputChannel.appendLine("­ƒô▒ Celular conectado!");
         
-        // Envia o histórico inicial para o cliente
+        // Envia o hist├│rico inicial para o cliente
         ws.send(JSON.stringify({ type: 'HISTORY', payload: history }));
         ws.on('message', async (message) => {
             let data;
@@ -109,62 +105,48 @@ async function activate(context) {
                 data = { type: 'LEGACY', msg: message.toString() }; 
             }
 
-            // Handshake de Reconexão
+            // Handshake de Reconex├úo
             if (data.type === 'HELLO') {
                 if (data.reconnected) {
-                    outputChannel.appendLine("🔄 Cliente antigo detectado, forçando refresh controlado...");
+                    outputChannel.appendLine("­ƒöä Cliente antigo detectado, for├ºando refresh controlado...");
                     ws.send(JSON.stringify({ type: 'COMMAND', action: 'REFRESH' }));
                 } else {
-                    outputChannel.appendLine("✨ Nova sessão iniciada no celular.");
+                    outputChannel.appendLine("Ô£¿ Nova sess├úo iniciada no celular.");
                 }
                 return;
             }
             
             try {
-                // Tratamento de Simulação de Teclado (Novos Botões)
+                // Tratamento de Simula├º├úo de Teclado (Novos Bot├Áes)
                 if (data.type === 'KEY_SIM') {
+                    const { execSync } = require('child_process');
                     let actionLabel = '';
                     
                     if (data.action === 'COPY') {
-                        await keyboard.pressKey(Key.LeftControl, Key.C);
-                        await keyboard.releaseKey(Key.LeftControl, Key.C);
-                        actionLabel = 'Copiar (Global)';
+                        await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
+                        actionLabel = 'Copiar (VS Code)';
                     }
                     else if (data.action === 'PASTE') {
-                        await keyboard.pressKey(Key.LeftControl, Key.V);
-                        await keyboard.releaseKey(Key.LeftControl, Key.V);
-                        actionLabel = 'Colar (Global)';
+                        await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+                        actionLabel = 'Colar (VS Code)';
                     }
                     else if (data.action === 'ENTER') {
-                        await keyboard.pressKey(Key.LeftShift, Key.Enter);
-                        await keyboard.releaseKey(Key.LeftShift, Key.Enter);
+                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('+{ENTER}')"`;
+                        try { execSync(psCommand); } catch (err) {}
                         actionLabel = 'Enter (Shift+Enter)';
                     }
                     else if (data.action === 'BACKSPACE') {
-                        await keyboard.type(Key.Backspace);
+                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('{BACKSPACE}')"`;
+                        try { execSync(psCommand); } catch (err) {}
                         actionLabel = 'Backspace';
                     }
                     else if (data.action === 'SAVE') {
-                        await keyboard.pressKey(Key.LeftControl, Key.S);
-                        await keyboard.releaseKey(Key.LeftControl, Key.S);
+                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^s')"`;
+                        try { execSync(psCommand); } catch (err) {}
                         actionLabel = 'Salvar (Ctrl+S)';
                     }
-                    else if (data.action === 'RESTART_PROJECT') {
-                        outputChannel.appendLine(`🚀 Reiniciando Projeto (npm start)...`);
-                        await keyboard.pressKey(Key.LeftControl, Key.C);
-                        await keyboard.releaseKey(Key.LeftControl, Key.C);
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        await keyboard.type("npm start");
-                        await keyboard.type(Key.Enter);
-                        vscode.window.setStatusBarMessage(`✅ npm start enviado`, 3000);
-                        return;
-                    }
-                    else if (data.action === 'REFRESH_F5') {
-                        await keyboard.type(Key.F5);
-                        actionLabel = 'Refresh (F5)';
-                    }
                     else if (data.action === 'RESTART_EXT') {
-                        outputChannel.appendLine(`🔄 Reiniciando Extensão (Debug)...`);
+                        outputChannel.appendLine(`­ƒöä Reiniciando Extens├úo (Debug)...`);
                         try {
                             const allWindows = windowManager.getWindows();
                             const mainWindow = allWindows.find(w => 
@@ -174,13 +156,14 @@ async function activate(context) {
                             
                             if (mainWindow) {
                                 mainWindow.bringToTop();
-                                setTimeout(async () => {
-                                    await keyboard.pressKey(Key.LeftControl, Key.LeftShift, Key.F5);
-                                    await keyboard.releaseKey(Key.LeftControl, Key.LeftShift, Key.F5);
+                                setTimeout(() => {
+                                    const { execSync } = require('child_process');
+                                    const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^+{F5}')"`;
+                                    try { execSync(psCommand); } catch (e) {}
                                 }, 500);
                             }
                         } catch (err) {}
-                        vscode.window.setStatusBarMessage(`✅ Extension Restart disparado`, 3000);
+                        vscode.window.setStatusBarMessage(`Ô£à Extension Restart disparado`, 3000);
                         return;
                     }
                     else if (data.action === 'GET_WINDOWS') {
@@ -203,7 +186,7 @@ async function activate(context) {
                                 
                                 if (!shouldExclude && !seenTitles.has(title)) {
                                     try {
-                                        // Filtramos janelas que não são "reais" ou visíveis
+                                        // Filtramos janelas que n├úo s├úo "reais" ou vis├¡veis
                                         if (win.isVisible()) {
                                             uniqueWindows.push({
                                                 id: win.processId,
@@ -215,45 +198,40 @@ async function activate(context) {
                                 }
                             }
 
-                            // Ordena por título para facilitar no celular
+                            // Ordena por t├¡tulo para facilitar no celular
                             uniqueWindows.sort((a, b) => a.title.localeCompare(b.title));
 
-                            outputChannel.appendLine(`🪟 Alt-Tab: Encontradas ${uniqueWindows.length} janelas.`);
+                            outputChannel.appendLine(`­ƒ¬ƒ Alt-Tab: Encontradas ${uniqueWindows.length} janelas.`);
                             ws.send(JSON.stringify({ type: 'WINDOWS_LIST', payload: uniqueWindows }));
                         } catch (e) {
-                            outputChannel.appendLine(`⚠️ Erro ao listar janelas: ${e.message}`);
+                            outputChannel.appendLine(`ÔÜá´©Å Erro ao listar janelas: ${e.message}`);
                         }
                         return;
                     }
                     else if (data.action === 'SWITCH_WINDOW') {
                         try {
-                            outputChannel.appendLine(`🎯 Acionando via VBScript (AppActivate): ${data.title}`);
-                            
-                            const os = require('os');
-                            const path = require('path');
-                            const fs = require('fs');
-                            const { execSync } = require('child_process');
-                            
-                            // PowerShell leva ~500ms para iniciar. VBScript via cscript leva ~20ms.
-                            const vbsPath = path.join(os.tmpdir(), 'antigravity_focus.vbs');
-                            if (!fs.existsSync(vbsPath)) {
-                                fs.writeFileSync(vbsPath, 'Set wshell = CreateObject("WScript.Shell")\nwshell.AppActivate WScript.Arguments(0)');
+                            const allWindows = windowManager.getWindows();
+                            // Buscamos pelo PID ou T├¡tulo (o PowerShell nos deu o PID como id)
+                            const targetWindow = allWindows.find(w => w.processId === data.windowId || w.getTitle() === data.title);
+                            if (targetWindow) {
+                                targetWindow.bringToTop();
+                                outputChannel.appendLine(`­ƒÄ» Focando na janela: ${data.title}`);
+                                vscode.window.setStatusBarMessage(`Ô£à Focando: ${data.title}`, 2000);
+                            } else {
+                                // Fallback via powershell se o windowManager falhar
+                                const { execSync } = require('child_process');
+                                const focusCmd = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.AppActivate(${data.windowId})"`;
+                                try { execSync(focusCmd); } catch (err) {}
                             }
-                            
-                            // Usaremos cscript executando o vbs no modo oculto/rápido
-                            const focusCmd = `cscript //nologo "${vbsPath}" ${data.windowId}`;
-                            try { execSync(focusCmd); } catch (err) {}
-                            
-                            vscode.window.setStatusBarMessage(`✅ Focando: ${data.title}`, 2000);
                         } catch (e) {
-                            outputChannel.appendLine(`⚠️ Erro ao focar janela: ${e.message}`);
+                            outputChannel.appendLine(`ÔÜá´©Å Erro ao focar janela: ${e.message}`);
                         }
                         return;
                     }
                     
                     if (actionLabel) {
-                        outputChannel.appendLine(`⌨️ Ação: ${actionLabel}`);
-                        vscode.window.setStatusBarMessage(`✅ Comando enviado: ${actionLabel}`, 2000);
+                        outputChannel.appendLine(`Ôî¿´©Å A├º├úo: ${actionLabel}`);
+                        vscode.window.setStatusBarMessage(`Ô£à Comando enviado: ${actionLabel}`, 2000);
                     }
                     return;
                 }
@@ -261,14 +239,13 @@ async function activate(context) {
                 if (data.type === 'FREE_TEXT') {
                     const msg = data.msg;
                     if (!msg) return;
-                    outputChannel.appendLine(`⌨️ Digitação Livre: "${msg}"`);
+                    outputChannel.appendLine(`Ôî¿´©Å Digita├º├úo Livre: "${msg}"`);
                     
-                    // Envia o texto via clipboard + paste para ser mais rápido e preciso no foco atual
+                    // Envia o texto via clipboard + paste para ser mais r├ípido e preciso no foco atual
                     await vscode.env.clipboard.writeText(msg);
-                    await keyboard.pressKey(Key.LeftControl, Key.V);
-                    await keyboard.releaseKey(Key.LeftControl, Key.V);
+                    await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
                     
-                    vscode.window.setStatusBarMessage(`✅ Texto enviado ao foco`, 2000);
+                    vscode.window.setStatusBarMessage(`Ô£à Texto enviado ao foco`, 2000);
                     return;
                 }
 
@@ -277,7 +254,7 @@ async function activate(context) {
 
                 outputChannel.appendLine(`>> Recebido: "${msg}"`);
                 
-                // Adiciona ao histórico e salva
+                // Adiciona ao hist├│rico e salva
                 const historyItem = { id: Date.now(), text: msg, date: new Date().toISOString() };
                 history.push(historyItem); // Novo vai para o final
                 history.sort((a, b) => a.id - b.id); // Re-ordena apenas para garantir integridade
@@ -291,14 +268,15 @@ async function activate(context) {
                     }
                 });
                 
-                // 1. SIMULAÇÃO DE TECLADO (Recortar para limpar o input)
-                outputChannel.appendLine("Simulando Ctrl+A e Ctrl+X via nut-js...");
-                await keyboard.pressKey(Key.LeftControl, Key.A);
-                await keyboard.releaseKey(Key.LeftControl, Key.A);
-                await keyboard.pressKey(Key.LeftControl, Key.X);
-                await keyboard.releaseKey(Key.LeftControl, Key.X);
+                // 1. SIMULA├ç├âO DE TECLADO (Recortar para limpar o input)
+                // REVERTIDO PARA POWERSHELL CONFORME SOLICITADO
+                outputChannel.appendLine("Simulando Ctrl+A e Ctrl+X via Sistema...");
+                const { execSync } = require('child_process');
+                const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^a'); Start-Sleep -Milliseconds 100; $wshell.SendKeys('^x')"`;
                 
-                await new Promise(resolve => setTimeout(resolve, 200));
+                try { execSync(psCommand); } catch (err) {}
+                
+                await new Promise(resolve => setTimeout(resolve, 600));
                 
                 let existingContent = "";
                 try {
@@ -312,7 +290,7 @@ async function activate(context) {
                 
                 // 3. ENVIO
                 await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', finalMsg);
-                vscode.window.setStatusBarMessage(`✅ Recortado e Enviado`, 2000);
+                vscode.window.setStatusBarMessage(`Ô£à Recortado e Enviado`, 2000);
             } catch (e) {
                 outputChannel.appendLine(`Erro no fluxo: ${e.message}`);
             }
@@ -649,10 +627,10 @@ function getWebpageContent(ip, port) {
             <h2>ANTIGRAVITY BRIDGE</h2>
         </div>
 
-        <div id="streaming-box">Aguardando código...</div>
+        <div id="streaming-box">Aguardando c├│digo...</div>
         
         <div id="history-container">
-            <!-- Itens de histórico entram aqui -->
+            <!-- Itens de hist├│rico entram aqui -->
         </div>
 
         <div class="input-area">
@@ -667,7 +645,7 @@ function getWebpageContent(ip, port) {
                 inputmode="text"></textarea>
             
             <div class="button-dock">
-                <button class="dock-btn" onclick="openModal()" title="Outras Ações" style="color: #fbbf24;">
+                <button class="dock-btn" onclick="openModal()" title="Outras A├º├Áes" style="color: #fbbf24;">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
                 </button>
 
@@ -702,7 +680,7 @@ function getWebpageContent(ip, port) {
                 ws = new WebSocket('ws://' + window.location.host);
                 
                 ws.onopen = () => {
-                    status.innerText = '● CONECTADO';
+                    status.innerText = 'ÔùÅ CONECTADO';
                     status.className = 'connected';
                     ws.send(JSON.stringify({ type: 'HELLO', reconnected: isReconnected }));
                     isReconnected = false;
@@ -730,7 +708,7 @@ function getWebpageContent(ip, port) {
                 };
 
                 ws.onclose = () => {
-                    status.innerText = '○ DESCONECTADO - RECONECTANDO...';
+                    status.innerText = 'Ôùï DESCONECTADO - RECONECTANDO...';
                     status.className = 'disconnected';
                     isReconnected = true; 
                     setTimeout(connect, 2000);
@@ -763,7 +741,7 @@ function getWebpageContent(ip, port) {
                 // Auto-scroll para o final
                 container.scrollTop = container.scrollHeight;
 
-                // Armazena o histórico globalmente para busca rápida
+                // Armazena o hist├│rico globalmente para busca r├ípida
                 window.currentHistory = history;
             }
 
@@ -784,7 +762,7 @@ function getWebpageContent(ip, port) {
                     // Tenta copiar para o clipboard do smartphone
                     let copied = false;
                     try {
-                        // Tenta o método moderno primeiro (pode falhar em HTTP)
+                        // Tenta o m├®todo moderno primeiro (pode falhar em HTTP)
                         if (navigator.clipboard && navigator.clipboard.writeText) {
                             await navigator.clipboard.writeText(item.text);
                             copied = true;
@@ -806,15 +784,15 @@ function getWebpageContent(ip, port) {
                             document.body.removeChild(tempInput);
                             copied = true;
                         } catch (err) {
-                            console.error('Falha no fallback de cópia:', err);
+                            console.error('Falha no fallback de c├│pia:', err);
                         }
                     }
 
                     if (copied) {
-                        // Feedback visual no botão
+                        // Feedback visual no bot├úo
                         const btn = event.currentTarget;
                         const oldHtml = btn.innerHTML;
-                        btn.innerHTML = '✅';
+                        btn.innerHTML = 'Ô£à';
                         setTimeout(() => btn.innerHTML = oldHtml, 1000);
                     }
                 }
@@ -839,7 +817,7 @@ function getWebpageContent(ip, port) {
                 if(ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'KEY_SIM', action: action }));
                     
-                    // Feedback tátil/visual simples no botão
+                    // Feedback t├ítil/visual simples no bot├úo
                     window.navigator.vibrate && window.navigator.vibrate(10);
                 }
             }
@@ -911,13 +889,13 @@ function getWebpageContent(ip, port) {
                     });
                 }
                 
-                // Botão de Voltar
+                // Bot├úo de Voltar
                 const backBtn = document.createElement('button');
                 backBtn.className = 'modal-btn';
                 backBtn.style.marginTop = '10px';
                 backBtn.style.background = 'transparent';
                 backBtn.style.borderColor = '#444';
-                backBtn.innerHTML = '← Voltar';
+                backBtn.innerHTML = 'ÔåÉ Voltar';
                 backBtn.onclick = openModal;
                 content.appendChild(backBtn);
             }
@@ -925,7 +903,7 @@ function getWebpageContent(ip, port) {
             function switchWindow(id, title) {
                 if(ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({ type: 'KEY_SIM', action: 'SWITCH_WINDOW', windowId: id, title: title }));
-                    // Ao invés de fechar, volta para o menu principal de ações
+                    // Ao inv├®s de fechar, volta para o menu principal de a├º├Áes
                     openModal();
                 }
             }
@@ -976,7 +954,7 @@ function getWebpageContent(ip, port) {
                     </button>
 
                     <button class="modal-btn" onclick="openModal()" style="margin-top: 15px; background: transparent; border-color: #444; min-height: 40px;">
-                        ← Voltar
+                        ÔåÉ Voltar
                     </button>
                 \`;
                 // Foca no novo textarea

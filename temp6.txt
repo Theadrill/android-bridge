@@ -1,0 +1,118 @@
+﻿diff --git a/extension.js b/extension.js
+index f7e52b8..00a3b84 100644
+--- a/extension.js
++++ b/extension.js
+@@ -5,6 +5,10 @@ const os = require('os');
+ const fs = require('fs');
+ const path = require('path');
+ const { windowManager } = require('node-window-manager');
++const { keyboard, Key } = require('@nut-tree-fork/nut-js');
++
++// Configura o nut-js para ser instant├óneo (sem delay entre teclas)
++keyboard.config.autoDelayMs = 0;
+ 
+ let wss;
+ let httpServer;
+@@ -119,32 +123,46 @@ async function activate(context) {
+             try {
+                 // Tratamento de Simula├º├úo de Teclado (Novos Bot├Áes)
+                 if (data.type === 'KEY_SIM') {
+-                    const { execSync } = require('child_process');
+                     let actionLabel = '';
+                     
+                     if (data.action === 'COPY') {
+-                        await vscode.commands.executeCommand('editor.action.clipboardCopyAction');
+-                        actionLabel = 'Copiar (VS Code)';
++                        await keyboard.pressKey(Key.LeftControl, Key.C);
++                        await keyboard.releaseKey(Key.LeftControl, Key.C);
++                        actionLabel = 'Copiar (Global)';
+                     }
+                     else if (data.action === 'PASTE') {
+-                        await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
+-                        actionLabel = 'Colar (VS Code)';
++                        await keyboard.pressKey(Key.LeftControl, Key.V);
++                        await keyboard.releaseKey(Key.LeftControl, Key.V);
++                        actionLabel = 'Colar (Global)';
+                     }
+                     else if (data.action === 'ENTER') {
+-                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('+{ENTER}')"`;
+-                        try { execSync(psCommand); } catch (err) {}
++                        await keyboard.pressKey(Key.LeftShift, Key.Enter);
++                        await keyboard.releaseKey(Key.LeftShift, Key.Enter);
+                         actionLabel = 'Enter (Shift+Enter)';
+                     }
+                     else if (data.action === 'BACKSPACE') {
+-                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('{BACKSPACE}')"`;
+-                        try { execSync(psCommand); } catch (err) {}
++                        await keyboard.type(Key.Backspace);
+                         actionLabel = 'Backspace';
+                     }
+                     else if (data.action === 'SAVE') {
+-                        const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^s')"`;
+-                        try { execSync(psCommand); } catch (err) {}
++                        await keyboard.pressKey(Key.LeftControl, Key.S);
++                        await keyboard.releaseKey(Key.LeftControl, Key.S);
+                         actionLabel = 'Salvar (Ctrl+S)';
+                     }
++                    else if (data.action === 'RESTART_PROJECT') {
++                        outputChannel.appendLine(`­ƒÜÇ Reiniciando Projeto (npm start)...`);
++                        await keyboard.pressKey(Key.LeftControl, Key.C);
++                        await keyboard.releaseKey(Key.LeftControl, Key.C);
++                        await new Promise(resolve => setTimeout(resolve, 500));
++                        await keyboard.type("npm start");
++                        await keyboard.type(Key.Enter);
++                        vscode.window.setStatusBarMessage(`Ô£à npm start enviado`, 3000);
++                        return;
++                    }
++                    else if (data.action === 'REFRESH_F5') {
++                        await keyboard.type(Key.F5);
++                        actionLabel = 'Refresh (F5)';
++                    }
+                     else if (data.action === 'RESTART_EXT') {
+                         outputChannel.appendLine(`­ƒöä Reiniciando Extens├úo (Debug)...`);
+                         try {
+@@ -156,10 +174,9 @@ async function activate(context) {
+                             
+                             if (mainWindow) {
+                                 mainWindow.bringToTop();
+-                                setTimeout(() => {
+-                                    const { execSync } = require('child_process');
+-                                    const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^+{F5}')"`;
+-                                    try { execSync(psCommand); } catch (e) {}
++                                setTimeout(async () => {
++                                    await keyboard.pressKey(Key.LeftControl, Key.LeftShift, Key.F5);
++                                    await keyboard.releaseKey(Key.LeftControl, Key.LeftShift, Key.F5);
+                                 }, 500);
+                             }
+                         } catch (err) {}
+@@ -243,7 +260,8 @@ async function activate(context) {
+                     
+                     // Envia o texto via clipboard + paste para ser mais r├ípido e preciso no foco atual
+                     await vscode.env.clipboard.writeText(msg);
+-                    await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
++                    await keyboard.pressKey(Key.LeftControl, Key.V);
++                    await keyboard.releaseKey(Key.LeftControl, Key.V);
+                     
+                     vscode.window.setStatusBarMessage(`Ô£à Texto enviado ao foco`, 2000);
+                     return;
+@@ -269,14 +287,13 @@ async function activate(context) {
+                 });
+                 
+                 // 1. SIMULA├ç├âO DE TECLADO (Recortar para limpar o input)
+-                // REVERTIDO PARA POWERSHELL CONFORME SOLICITADO
+-                outputChannel.appendLine("Simulando Ctrl+A e Ctrl+X via Sistema...");
+-                const { execSync } = require('child_process');
+-                const psCommand = `powershell -Command "$wshell = New-Object -ComObject WScript.Shell; $wshell.SendKeys('^a'); Start-Sleep -Milliseconds 100; $wshell.SendKeys('^x')"`;
+-                
+-                try { execSync(psCommand); } catch (err) {}
++                outputChannel.appendLine("Simulando Ctrl+A e Ctrl+X via nut-js...");
++                await keyboard.pressKey(Key.LeftControl, Key.A);
++                await keyboard.releaseKey(Key.LeftControl, Key.A);
++                await keyboard.pressKey(Key.LeftControl, Key.X);
++                await keyboard.releaseKey(Key.LeftControl, Key.X);
+                 
+-                await new Promise(resolve => setTimeout(resolve, 600));
++                await new Promise(resolve => setTimeout(resolve, 200));
+                 
+                 let existingContent = "";
+                 try {
