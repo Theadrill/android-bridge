@@ -186,15 +186,70 @@ async function activate(context) {
                     else if (data.action === 'GET_WINDOWS') {
                         loadExclusions();
                         try {
-                            const allWindows = windowManager.getWindows();
+                            const os = require('os');
+                            const path = require('path');
+                            const fs = require('fs');
+                            const { execSync } = require('child_process');
+                            
+                            const psPath = path.join(os.tmpdir(), "antigravity_get_windows.ps1");
+                            if (!fs.existsSync(psPath)) {
+                                const psScript = `
+Add-Type @"
+using System;
+using System.Text;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
+
+public class WinAPI {
+    public delegate bool EnumWindowsProc(IntPtr hWnd, int lParam);
+    [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc enumFunc, int lParam);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int dwAttribute, out int pvAttribute, int cbAttribute);
+    [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, StringBuilder lpString, int nMaxCount);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+    [DllImport("user32.dll", ExactSpelling = true)] public static extern IntPtr GetAncestor(IntPtr hwnd, uint gaFlags);
+    [DllImport("user32.dll")] public static extern IntPtr GetLastActivePopup(IntPtr hWnd);
+
+    public static List<string> GetWindows() {
+        List<string> result = new List<string>();
+        EnumWindows((hWnd, lParam) => {
+            if (!IsWindowVisible(hWnd)) return true;
+            int cloakedVal = 0;
+            DwmGetWindowAttribute(hWnd, 14, out cloakedVal, sizeof(int));
+            if (cloakedVal != 0) return true;
+            IntPtr root = GetAncestor(hWnd, 3);
+            if (GetLastActivePopup(root) != hWnd) return true;
+            StringBuilder title = new StringBuilder(256);
+            GetWindowText(hWnd, title, 256);
+            if (title.Length == 0 || title.ToString() == "Program Manager") return true;
+            uint processId;
+            GetWindowThreadProcessId(hWnd, out processId);
+            result.Add(processId + "|||" + title.ToString().Replace("\\r", "").Replace("\\n", ""));
+            return true;
+        }, 0);
+        return result;
+    }
+}
+"@
+$windows = [WinAPI]::GetWindows()
+foreach ($w in $windows) { Write-Output $w }
+`;
+                                fs.writeFileSync(psPath, psScript);
+                            }
+
+                            const output = execSync(`powershell -ExecutionPolicy Bypass -NoProfile -File "${psPath}"`, { encoding: 'utf8' });
+                            const lines = output.split('\n');
+                            
                             let uniqueWindows = [];
                             let seenTitles = new Set();
 
-                            for (const win of allWindows) {
-                                let title = "";
-                                try { title = win.getTitle(); } catch(e) { continue; }
+                            for (const line of lines) {
+                                if (!line || !line.includes('|||')) continue;
+                                const parts = line.split('|||');
+                                const processId = parseInt(parts[0].trim(), 10);
+                                const title = parts[1].trim();
                                 
-                                if (!title || title.trim() === "") continue;
+                                if (!title || title === "") continue;
 
                                 const lowerTitle = title.toLowerCase();
                                 const shouldExclude = WINDOW_EXCLUSION_LIST.some(ex => 
@@ -202,26 +257,21 @@ async function activate(context) {
                                 );
                                 
                                 if (!shouldExclude && !seenTitles.has(title)) {
-                                    try {
-                                        // Filtramos janelas que não são "reais" ou visíveis
-                                        if (win.isVisible()) {
-                                            uniqueWindows.push({
-                                                id: win.processId,
-                                                title: title
-                                            });
-                                            seenTitles.add(title);
-                                        }
-                                    } catch (e) {}
+                                    uniqueWindows.push({
+                                        id: processId,
+                                        title: title
+                                    });
+                                    seenTitles.add(title);
                                 }
                             }
 
                             // Ordena por título para facilitar no celular
                             uniqueWindows.sort((a, b) => a.title.localeCompare(b.title));
 
-                            outputChannel.appendLine(`🪟 Alt-Tab: Encontradas ${uniqueWindows.length} janelas.`);
+                            outputChannel.appendLine(`🪟 Alt-Tab: Encontradas ${uniqueWindows.length} janelas reais via PowerShell.`);
                             ws.send(JSON.stringify({ type: 'WINDOWS_LIST', payload: uniqueWindows }));
                         } catch (e) {
-                            outputChannel.appendLine(`⚠️ Erro ao listar janelas: ${e.message}`);
+                            outputChannel.appendLine(`⚠️ Erro ao listar janelas nativas: ${e.message}`);
                         }
                         return;
                     }
