@@ -280,6 +280,71 @@
 
             .modal-btn:active { transform: scale(0.96); background: #3d3d45; }
             .modal-btn.cancel { border: none; background: transparent; color: var(--text-dim); margin-top: 5px; flex-shrink: 0; }
+
+            .landscape-only { display: none !important; }
+            .portrait-only { display: flex !important; }
+
+            /* Modo Landscape / Telas pequenas em altura */
+            @media (orientation: landscape) or (max-height: 450px) {
+                .landscape-only { display: flex !important; }
+                .portrait-only { display: none !important; }
+
+                #modal-content.touchpad-active {
+                    flex-direction: row !important;
+                    gap: 12px !important;
+                    align-items: stretch !important;
+                }
+                .touchpad-side-controls {
+                    width: 140px;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: space-between;
+                    flex-shrink: 0;
+                }
+                .touchpad-side-controls .mouse-btns {
+                    flex-direction: column !important;
+                    flex: 1;
+                    justify-content: center;
+                    gap: 8px !important;
+                }
+                .touchpad-side-controls .mouse-btns .modal-btn {
+                    flex: none !important;
+                    height: 45px !important;
+                    min-height: 45px !important;
+                    padding: 0 !important;
+                }
+                #touch-area {
+                    margin-bottom: 0 !important;
+                }
+                .modal.full-width {
+                    height: 98vh !important;
+                }
+            }
+
+            /* Overlay de Sensibilidade */
+            #sens-settings-overlay {
+                display: none;
+                position: absolute;
+                top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(8, 8, 10, 0.98);
+                z-index: 100;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                padding: 30px;
+                border-radius: 20px;
+                animation: fadeIn 0.2s ease-out;
+            }
+
+            /* Fullscreen Fix */
+            :fullscreen .modal.full-width {
+                width: 100vw !important;
+                height: 100vh !important;
+                max-height: 100vh !important;
+                border: none !important;
+                border-radius: 0 !important;
+            }
+            :fullscreen .modal-overlay { padding: 0 !important; }
         </style>
     </head>
     <body>
@@ -572,8 +637,12 @@
                     modal.style.padding = '24px';
                 }
                 
+                const title = document.getElementById('modal-title');
+                if (title) title.style.display = 'block';
+
                 const content = document.getElementById('modal-content');
                 if (content) {
+                    content.classList.remove('touchpad-active');
                     content.style.display = 'block';
                     content.style.height = 'auto';
                 }
@@ -745,33 +814,65 @@
                 modal.style.maxHeight = '90vh';
                 modal.style.padding = '15px';
                 const title = document.getElementById('modal-title');
-                if (title) title.innerText = 'TOUCHPAD';
+                if (title) title.style.display = 'none';
 
                 const mainCancel = document.getElementById('main-cancel-btn');
                 if (mainCancel) mainCancel.style.display = 'none';
 
                 const content = document.getElementById('modal-content');
                 if (content) {
+                    content.classList.add('touchpad-active');
                     content.style.display = 'flex';
                     content.style.flexDirection = 'column';
                     content.style.height = '100%';
                     content.style.overflow = 'hidden';
                     content.innerHTML = `
                         <div id="touch-area" style="flex: 1; background: #222; border-radius: 16px; border: 2px solid #3d3d45; touch-action: none; margin-bottom: 15px; position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
+                            <div style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); color: var(--primary); font-weight: 800; font-size: 12px; letter-spacing: 1.5px; opacity: 0.8; text-transform: uppercase;">TOUCHPAD</div>
                             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #444; pointer-events: none; text-transform: uppercase; font-weight: bold; letter-spacing: 2px; font-size: 14px;">Area de Deslize</div>
                         </div>
-                        <div style="display: flex; gap: 10px; margin-bottom: 12px; flex-shrink: 0;">
-                            <button class="modal-btn" onpointerdown="event.preventDefault(); sendMouseClick('LEFT')" style="flex: 1; margin: 0; min-height: 60px; font-size: 14px; background: #2563eb;">ESQ</button>
-                            <button class="modal-btn" onpointerdown="event.preventDefault(); sendMouseClick('MIDDLE')" style="flex: 1; margin: 0; min-height: 60px; font-size: 14px;">MEIO</button>
-                            <button class="modal-btn" onpointerdown="event.preventDefault(); sendMouseClick('RIGHT')" style="flex: 1; margin: 0; min-height: 60px; font-size: 14px; background: #4b5563;">DIR</button>
+                        <div class="touchpad-side-controls">
+                            <!-- Botões de Clique (Sempre visíveis, mudam direção via CSS) -->
+                            <div class="mouse-btns" style="display: flex; gap: 10px; margin-bottom: 12px; flex-shrink: 0;">
+                                <button class="modal-btn" onpointerdown="event.preventDefault(); sendMouseClick('LEFT')" style="flex: 1; margin: 0; min-height: 60px; font-size: 14px; background: #2563eb;">ESQ</button>
+                                <button class="modal-btn" onpointerdown="event.preventDefault(); sendMouseClick('MIDDLE')" style="flex: 1; margin: 0; min-height: 60px; font-size: 14px;">MEIO</button>
+                                <button class="modal-btn" onpointerdown="event.preventDefault(); sendMouseClick('RIGHT')" style="flex: 1; margin: 0; min-height: 60px; font-size: 14px; background: #4b5563;">DIR</button>
+                            </div>
+
+                            <!-- Controles para MODO PAISAGEM (Botão Sensibilidade + Fullscreen) -->
+                            <div class="landscape-only" style="gap: 8px; margin-bottom: 12px; flex-shrink: 0;">
+                                <button class="modal-btn" onclick="toggleSensOverlay()" style="flex: 1; margin: 0; min-height: 44px; font-size: 11px; background: #3d3d45; color: #a78bfa; font-weight: bold;">SENS</button>
+                                <button class="modal-btn" onclick="toggleFullscreen()" style="width: 44px; margin: 0; min-height: 44px; background: #3d3d45; padding: 0;">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M16 3h3a2 2 0 0 1 2 2v3"></path><path d="M8 21H5a2 2 0 0 1-2-2v-3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+                                </button>
+                            </div>
+
+                            <!-- Controles para MODO RETRATO (Slider + Fullscreen na mesma linha) -->
+                            <div id="sens-container" class="portrait-only" style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; background: #2d2d33; padding: 10px; border-radius: 12px; flex-shrink: 0;">
+                                <span style="font-size: 11px; color: #94a3b8; font-weight: bold; min-width: 40px;">SENS:</span>
+                                <input type="range" id="sens-slider" min="0.5" max="4.0" step="0.1" value="${sensitivity}" 
+                                    style="flex: 1; accent-color: #3b82f6;" 
+                                    oninput="sensitivity = parseFloat(this.value); localStorage.setItem('sensitivity', this.value);">
+                                <button onclick="toggleFullscreen()" style="background: #3d3d45; border: none; color: #e2e8f0; border-radius: 6px; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M16 3h3a2 2 0 0 1 2 2v3"></path><path d="M8 21H5a2 2 0 0 1-2-2v-3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+                                </button>
+                            </div>
+                            <button class="modal-btn cancel" onclick="closeModal()" style="margin: 0; flex-shrink: 0;">FECHAR</button>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px; background: #2d2d33; padding: 10px; border-radius: 12px; flex-shrink: 0;">
-                            <span style="font-size: 11px; color: #94a3b8; font-weight: bold; min-width: 40px;">SENS:</span>
-                            <input type="range" id="sens-slider" min="0.5" max="4.0" step="0.1" value="${sensitivity}" 
-                                style="flex: 1; accent-color: #3b82f6;" 
-                                oninput="sensitivity = parseFloat(this.value); localStorage.setItem('sensitivity', this.value);">
+
+                        <!-- Modal Overlay para ajuste de sensibilidade no modo paisagem -->
+                        <div id="sens-settings-overlay">
+                            <h4 style="margin: 0 0 20px 0; color: #a78bfa; letter-spacing: 1px;">AJUSTAR SENSIBILIDADE</h4>
+                            <div style="width: 100%; display: flex; align-items: center; gap: 15px; background: #1e1e24; padding: 25px; border-radius: 20px; border: 1px solid #333;">
+                                <span style="font-size: 12px; color: #94a3b8; font-weight: bold;">0.5x</span>
+                                <input type="range" min="0.5" max="4.0" step="0.1" value="${sensitivity}" 
+                                    style="flex: 1; height: 10px; accent-color: #3b82f6;" 
+                                    oninput="sensitivity = parseFloat(this.value); localStorage.setItem('sensitivity', this.value); document.getElementById('sens-val-badge').innerText = this.value + 'x'">
+                                <span style="font-size: 12px; color: #94a3b8; font-weight: bold;">4.0x</span>
+                            </div>
+                            <div id="sens-val-badge" style="margin-top: 20px; font-size: 24px; font-weight: 900; color: #3b82f6;">${sensitivity}x</div>
+                            <button class="modal-btn" onclick="toggleSensOverlay()" style="margin-top: 35px; width: 160px; background: #2563eb; font-weight: 800;">CONCLUÍDO</button>
                         </div>
-                        <button class="modal-btn cancel" onclick="closeModal()" style="margin: 0; flex-shrink: 0;">FECHAR TOUCHPAD</button>
                     `;
                     setupTouchpad();
                 }
@@ -865,6 +966,23 @@
                     ws.send(JSON.stringify({ type: 'MOUSE_SIM', action: 'CLICK', button: btn }));
                     window.navigator.vibrate && window.navigator.vibrate(15);
                 }
+            }
+
+            function toggleFullscreen() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.error(`Erro ao entrar em fullscreen: ${err.message}`);
+                    });
+                } else {
+                    if (document.exitFullscreen) document.exitFullscreen();
+                }
+            }
+
+            function toggleSensOverlay() {
+                const overlay = document.getElementById('sens-settings-overlay');
+                if (!overlay) return;
+                const isVisible = overlay.style.display === 'flex';
+                overlay.style.display = isVisible ? 'none' : 'flex';
             }
 
             connect();
