@@ -210,6 +210,31 @@ while ($true) {
                 // Tratamento de Simulação de Teclado (Novos Botões)
                 if (data.type === 'KEY_SIM') {
                     let actionLabel = '';
+                    const modifiers = data.modifiers || [];
+                    const nutMods = modifiers.map(m => {
+                        if (m === 'CTRL') return Key.LeftControl;
+                        if (m === 'ALT') return Key.LeftAlt;
+                        if (m === 'SHIFT') return Key.LeftShift;
+                        if (m === 'WIN') return Key.LeftSuper;
+                        return null;
+                    }).filter(m => m !== null);
+
+                    const typeWithMods = async (key) => {
+                        if (nutMods.length > 0) {
+                            // Pressiona todos os modificadores
+                            for (const mod of nutMods) {
+                                await keyboard.pressKey(mod);
+                            }
+                            // Pressiona e solta a tecla alvo
+                            await keyboard.type(key);
+                            // Solta todos os modificadores
+                            for (const mod of nutMods) {
+                                await keyboard.releaseKey(mod);
+                            }
+                        } else {
+                            await keyboard.type(key);
+                        }
+                    };
                     
                     if (data.action === 'COPY') {
                         await keyboard.pressKey(Key.LeftControl, Key.C);
@@ -226,9 +251,22 @@ while ($true) {
                         await keyboard.releaseKey(Key.LeftShift, Key.Enter);
                         actionLabel = 'Enter (Shift+Enter)';
                     }
+                    else if (data.action === 'STD_ENTER') {
+                        await typeWithMods(Key.Enter);
+                        actionLabel = 'Enter (Standard)';
+                    }
+                    else if (data.action === 'CTRL_ENTER') {
+                        await keyboard.pressKey(Key.LeftControl, Key.Enter);
+                        await keyboard.releaseKey(Key.LeftControl, Key.Enter);
+                        actionLabel = 'Ctrl+Enter';
+                    }
                     else if (data.action === 'BACKSPACE') {
-                        await keyboard.type(Key.Backspace);
+                        await typeWithMods(Key.Backspace);
                         actionLabel = 'Backspace';
+                    }
+                    else if (data.action === 'ESC') {
+                        await typeWithMods(Key.Escape);
+                        actionLabel = 'Esc';
                     }
                     else if (data.action === 'SAVE') {
                         await keyboard.pressKey(Key.LeftControl, Key.S);
@@ -246,8 +284,40 @@ while ($true) {
                         return;
                     }
                     else if (data.action === 'REFRESH_F5') {
-                        await keyboard.type(Key.F5);
+                        await typeWithMods(Key.F5);
                         actionLabel = 'Refresh (F5)';
+                    }
+                    else if (data.action.startsWith('F') && !isNaN(data.action.substring(1))) {
+                        const fKey = Key[data.action];
+                        if (fKey) await typeWithMods(fKey);
+                        actionLabel = data.action;
+                    }
+                    else if (data.action === 'HOME') { await typeWithMods(Key.Home); actionLabel = 'Home'; }
+                    else if (data.action === 'END') { await typeWithMods(Key.End); actionLabel = 'End'; }
+                    else if (data.action === 'PAGE_UP') { await typeWithMods(Key.PageUp); actionLabel = 'Page Up'; }
+                    else if (data.action === 'PAGE_DOWN') { await typeWithMods(Key.PageDown); actionLabel = 'Page Down'; }
+                    else if (data.action === 'INSERT') { await typeWithMods(Key.Insert); actionLabel = 'Insert'; }
+                    else if (data.action === 'PRINT') { 
+                        await keyboard.pressKey(Key.LeftSuper, Key.LeftShift, Key.S);
+                        await keyboard.releaseKey(Key.LeftSuper, Key.LeftShift, Key.S);
+                        actionLabel = 'Print Screen (Win+Shift+S)'; 
+                    }
+                    else if (data.action === 'DELETE') { await typeWithMods(Key.Delete); actionLabel = 'Delete'; }
+                    else if (data.action === 'UP') { await typeWithMods(Key.Up); actionLabel = 'Up'; }
+                    else if (data.action === 'DOWN') { await typeWithMods(Key.Down); actionLabel = 'Down'; }
+                    else if (data.action === 'LEFT') { await typeWithMods(Key.Left); actionLabel = 'Left'; }
+                    else if (data.action === 'RIGHT') { await typeWithMods(Key.Right); actionLabel = 'Right'; }
+                    else if (data.action === 'TAB') { await typeWithMods(Key.Tab); actionLabel = 'Tab'; }
+                    else if (data.action === 'MUTE') { await typeWithMods(Key.AudioMute); actionLabel = 'Mute'; }
+                    else if (data.action === 'VOL_DOWN') { await typeWithMods(Key.AudioVolDown); actionLabel = 'Volume -'; }
+                    else if (data.action === 'VOL_UP') { await typeWithMods(Key.AudioVolUp); actionLabel = 'Volume +'; }
+                    else if (data.action === 'BRIGHT_DOWN') { 
+                        require('child_process').exec('powershell -Command "$b = Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness -ErrorAction SilentlyContinue; if ($b) { $level = $b.CurrentBrightness - 10; if ($level -lt 0) { $level = 0 }; (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, $level) }"');
+                        actionLabel = 'Brilho -';
+                    }
+                    else if (data.action === 'BRIGHT_UP') { 
+                        require('child_process').exec('powershell -Command "$b = Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness -ErrorAction SilentlyContinue; if ($b) { $level = $b.CurrentBrightness + 10; if ($level -gt 100) { $level = 100 }; (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, $level) }"');
+                        actionLabel = 'Brilho +';
                     }
                     else if (data.action === 'RESTART_EXT') {
                         outputChannel.appendLine(`🔄 Reiniciando Extensão (Debug)...`);
