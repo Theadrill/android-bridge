@@ -790,11 +790,11 @@ while ($true) {
                     else if (data.action === 'RESTART_EXT') {
                         outputChannel.appendLine(`🔄 Reiniciando Extensão (Debug)...`);
                         try {
-                            // Procura pela janela do Extension Development Host do android-bridge
                             const allWindows = windowManager.getWindows();
+                            // Procura especificamente por "android-bridge - Antigravity" (EDH)
                             const devHostWindow = allWindows.find(w => 
-                                w.getTitle().includes("Extension Development Host") &&
-                                !w.getTitle().includes("antigravity")
+                                w.getTitle().includes("android-bridge") && 
+                                w.getTitle().includes("Antigravity")
                             );
                             
                             if (devHostWindow) {
@@ -805,19 +805,7 @@ while ($true) {
                                     await keyboard.releaseKey(Key.LeftControl, Key.LeftShift, Key.F5);
                                 }, 500);
                             } else {
-                                // Fallback: tenta VS Code normal
-                                outputChannel.appendLine(`⚠️ EDH não encontrada, tentando VS Code...`);
-                                const vsWindow = allWindows.find(w => 
-                                    w.getTitle().includes("Visual Studio Code") && 
-                                    !w.getTitle().includes("Extension Development Host")
-                                );
-                                if (vsWindow) {
-                                    vsWindow.bringToTop();
-                                    setTimeout(async () => {
-                                        await keyboard.pressKey(Key.LeftControl, Key.LeftShift, Key.F5);
-                                        await keyboard.releaseKey(Key.LeftControl, Key.LeftShift, Key.F5);
-                                    }, 500);
-                                }
+                                outputChannel.appendLine(`❌ Janela android-bridge Antigravity não encontrada`);
                             }
                         } catch (err) {
                             outputChannel.appendLine(`❌ Erro ao restart: ${err.message}`);
