@@ -266,6 +266,25 @@ while ($true) {
     
     httpServer.listen(port, '0.0.0.0');
 
+    // Manutenção Automática: Limpa a pasta de prints a cada 2 minutos
+    setInterval(() => {
+        const uploadDir = path.join(__dirname, 'temp_screenshots');
+        if (fs.existsSync(uploadDir)) {
+            const files = fs.readdirSync(uploadDir);
+            if (files.length > 0) {
+                files.forEach(file => {
+                    const filePath = path.join(uploadDir, file);
+                    try {
+                        fs.unlinkSync(filePath);
+                    } catch (err) {
+                        outputChannel.appendLine(`⚠️ Erro ao deletar arquivo temporário: ${err.message}`);
+                    }
+                });
+                outputChannel.appendLine(`🧹 Limpeza automática: Pasta de prints limpa!`);
+            }
+        }
+    }, 120000); // 120.000 ms = 2 minutos
+
     wss = new WebSocket.Server({ server: httpServer });
 
     wss.on('connection', (ws) => {
