@@ -136,6 +136,101 @@ async function testCDPConnection() {
     }
 }
 
+async function injectMessageViaCDP(text) {
+    if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
+        outputChannel.appendLine(`⚠️ CDP: Não conectado, tentando reconectar...`);
+        const targets = await discoverAntigravityCDP();
+        if (targets.length === 0) {
+            throw new Error('Antigravity não encontrado');
+        }
+        await connectCDP(targets[0].webSocketDebuggerUrl);
+        await callCDP('Runtime.enable', {});
+    }
+    
+    outputChannel.appendLine(`💬 CDP: Injetando mensagem...`);
+    
+    const safeText = JSON.stringify(text);
+    
+    // Script para encontrar editor e injetar texto
+    const INJECT_SCRIPT = `(async () => {
+        const editorSelectors = [
+            '#cascade [data-lexical-editor="true"][contenteditable="true"]',
+            '[data-lexical-editor="true"][contenteditable="true"]',
+            '[contenteditable="true"][role="textbox"]',
+            'div.max-h-\\\\u003d300px\\].rounded.cursor-text'
+        ];
+        
+        let editor = null;
+        for (const sel of editorSelectors) {
+            const el = [...document.querySelectorAll(sel)].filter(e => e.offsetParent !== null).at(-1);
+            if (el) { editor = el; break; }
+        }
+        
+        if (!editor) return { ok: false, reason: 'editor_not_found' };
+        
+        editor.focus();
+        document.execCommand?.("selectAll", false, null);
+        document.execCommand?.("delete", false, null);
+        
+        let inserted = false;
+        try { inserted = !!document.execCommand?.("insertText", false, ${safeText}); } catch {}
+        if (!inserted) {
+            editor.textContent = ${safeText};
+            editor.dispatchEvent(new InputEvent("beforeinput", { bubbles: true, inputType: "insertText", data: ${safeText} }));
+            editor.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: ${safeText} }));
+        }
+        
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        
+        // Tentar clicar no botão de enviar
+        const submitSelectors = [
+            'svg.lucide-arrow-right',
+            'svg.lucide-arrow-up',
+            'button[aria-label*="Send"]',
+            'button[aria-label*="Submit"]'
+        ];
+        
+        let submit = null;
+        for (const sel of submitSelectors) {
+            const el = document.querySelector(sel)?.closest("button");
+            if (el && !el.disabled && el.offsetParent !== null) {
+                submit = el; break;
+            }
+        }
+        
+        if (submit) {
+            submit.click();
+            return { ok: true, method: 'click_submit' };
+        }
+        
+        // Fallback: Enter
+        editor.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter", code: "Enter" }));
+        editor.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true, key: "Enter", code: "Enter" }));
+        
+        return { ok: true, method: 'enter_keypress' };
+    })()`;
+    
+    try {
+        const result = await callCDP('Runtime.evaluate', {
+            expression: INJECT_SCRIPT,
+            returnByValue: true,
+            awaitPromise: true
+        });
+        
+        const value = result.result?.value;
+        if (value?.ok) {
+            outputChannel.appendLine(`✅ CDP: Mensagem injetada (${value.method})`);
+            return true;
+        } else {
+            outputChannel.appendLine(`❌ CDP: ${value?.reason || 'erro desconhecido'}`);
+            return false;
+        }
+    } catch(e) {
+        outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
+        return false;
+    }
+}
+
 function loadExclusions() {
     try {
         if (fs.existsSync(exclusionsPath)) {
@@ -190,6 +285,16 @@ async function activate(context) {
     
     // Teste de conexão CDP
     setTimeout(() => testCDPConnection(), 2000);
+    
+    // Teste automático de injeção após 5 segundos
+    setTimeout(async () => {
+        outputChannel.appendLine(`🧪 CDP: Teste de injeção automática...`);
+        try {
+            await injectMessageViaCDP('Teste via CDP! 🤖');
+        } catch(e) {
+            outputChannel.appendLine(`❌ Teste falhou: ${e.message}`);
+        }
+    }, 5000);
     
     // Setup do State Manager Daemon em Background para Alt-Tab Instantâneo
     const psDaemonPath = path.join(os.tmpdir(), "antigravity_daemon.ps1");
