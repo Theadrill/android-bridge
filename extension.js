@@ -202,6 +202,17 @@ while ($true) {
     }
 
     httpServer = http.createServer((req, res) => {
+        // Headers CORS básicos para todas as rotas
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+        if (req.method === 'OPTIONS') {
+            res.writeHead(204);
+            res.end();
+            return;
+        }
+
         if (req.method === 'POST' && req.url === '/upload-print') {
             const formidable = require('formidable');
             const form = new formidable.IncomingForm();
@@ -211,26 +222,38 @@ while ($true) {
             
             form.parse(req, (err, fields, files) => {
                 if (err) {
+                    outputChannel.appendLine(`❌ Erro no Formidable: ${err.message}`);
                     res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
                     return;
                 }
                 
-                const file = files.image[0] || files.image;
-                const oldPath = file.filepath;
-                const newPath = path.join(uploadDir, 'last_print.png');
-                
-                fs.copyFileSync(oldPath, newPath);
-                
-                // Mágica Instantânea: PowerShell para Clipboard + Ctrl+V
-                const psCommand = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile('${newPath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose(); (New-Object -ComObject WScript.Shell).SendKeys('^v')"`;
-                
-                require('child_process').exec(psCommand, (psErr) => {
-                    if (psErr) outputChannel.appendLine(`⚠️ Erro no Clipboard: ${psErr.message}`);
-                });
+                try {
+                    const file = (files.image && files.image[0]) ? files.image[0] : files.image;
+                    if (!file) {
+                        outputChannel.appendLine(`⚠️ Nenhum arquivo 'image' encontrado no upload.`);
+                        res.writeHead(400); res.end(JSON.stringify({ error: 'No image found' }));
+                        return;
+                    }
 
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ success: true }));
-                outputChannel.appendLine(`📸 Print recebido e injetado no foco!`);
+                    const oldPath = file.filepath;
+                    const newPath = path.join(uploadDir, 'last_print.png');
+                    
+                    fs.copyFileSync(oldPath, newPath);
+                    
+                    // Mágica Instantânea: PowerShell para Clipboard + Ctrl+V
+                    const psCommand = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile('${newPath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose(); (New-Object -ComObject WScript.Shell).SendKeys('^v')"`;
+                    
+                    require('child_process').exec(psCommand, (psErr) => {
+                        if (psErr) outputChannel.appendLine(`⚠️ Erro no Clipboard: ${psErr.message}`);
+                    });
+
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    res.end(JSON.stringify({ success: true }));
+                    outputChannel.appendLine(`📸 Print recebido e injetado no foco!`);
+                } catch (parseErr) {
+                    outputChannel.appendLine(`❌ Erro ao processar arquivo: ${parseErr.message}`);
+                    res.writeHead(500); res.end(JSON.stringify({ error: parseErr.message }));
+                }
             });
             return;
         }

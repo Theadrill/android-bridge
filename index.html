@@ -1434,8 +1434,8 @@
                 formData.append('image', file);
                 
                 const statusText = document.getElementById('status-text');
-                const oldStatus = statusText.innerText;
-                statusText.innerText = 'ENVIANDO PRINT...';
+                const oldStatus = statusText ? statusText.innerText : '';
+                if (statusText) statusText.innerText = 'ENVIANDO PRINT...';
                 
                 try {
                     const response = await fetch('/upload-print', {
@@ -1444,19 +1444,19 @@
                     });
                     const result = await response.json();
                     if (result.success) {
-                        statusText.innerText = '✅ PRINT ANEXADO!';
+                        if (statusText) statusText.innerText = '✅ PRINT ANEXADO!';
                         window.navigator.vibrate && window.navigator.vibrate([30, 30]);
                         closeModal();
                     } else {
-                        statusText.innerText = '❌ ERRO NO UPLOAD';
+                        if (statusText) statusText.innerText = '❌ ERRO NO UPLOAD';
                     }
                 } catch (err) {
-                    statusText.innerText = '❌ FALHA NA CONEXÃO';
+                    if (statusText) statusText.innerText = '❌ FALHA NA CONEXÃO';
                     console.error(err);
                 }
                 
                 setTimeout(() => {
-                    statusText.innerText = oldStatus;
+                    if (statusText) statusText.innerText = oldStatus;
                     input.value = ''; // Reseta o input
                 }, 2000);
             }
