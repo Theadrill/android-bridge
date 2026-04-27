@@ -790,20 +790,38 @@ while ($true) {
                     else if (data.action === 'RESTART_EXT') {
                         outputChannel.appendLine(`🔄 Reiniciando Extensão (Debug)...`);
                         try {
+                            // Procura pela janela do Extension Development Host do android-bridge
                             const allWindows = windowManager.getWindows();
-                            const mainWindow = allWindows.find(w => 
-                                (w.getTitle().includes("android-bridge") || w.getTitle().includes("Visual Studio Code")) && 
-                                !w.getTitle().includes("Extension Development Host")
+                            const devHostWindow = allWindows.find(w => 
+                                w.getTitle().includes("Extension Development Host") &&
+                                !w.getTitle().includes("antigravity")
                             );
                             
-                            if (mainWindow) {
-                                mainWindow.bringToTop();
+                            if (devHostWindow) {
+                                outputChannel.appendLine(`🎯 Janela destino: ${devHostWindow.getTitle()}`);
+                                devHostWindow.bringToTop();
                                 setTimeout(async () => {
                                     await keyboard.pressKey(Key.LeftControl, Key.LeftShift, Key.F5);
                                     await keyboard.releaseKey(Key.LeftControl, Key.LeftShift, Key.F5);
                                 }, 500);
+                            } else {
+                                // Fallback: tenta VS Code normal
+                                outputChannel.appendLine(`⚠️ EDH não encontrada, tentando VS Code...`);
+                                const vsWindow = allWindows.find(w => 
+                                    w.getTitle().includes("Visual Studio Code") && 
+                                    !w.getTitle().includes("Extension Development Host")
+                                );
+                                if (vsWindow) {
+                                    vsWindow.bringToTop();
+                                    setTimeout(async () => {
+                                        await keyboard.pressKey(Key.LeftControl, Key.LeftShift, Key.F5);
+                                        await keyboard.releaseKey(Key.LeftControl, Key.LeftShift, Key.F5);
+                                    }, 500);
+                                }
                             }
-                        } catch (err) {}
+                        } catch (err) {
+                            outputChannel.appendLine(`❌ Erro ao restart: ${err.message}`);
+                        }
                         vscode.window.setStatusBarMessage(`✅ Extension Restart disparado`, 3000);
                         return;
                     }
