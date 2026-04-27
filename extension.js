@@ -13,8 +13,17 @@ keyboard.config.autoDelayMs = 0;
 let wss;
 let httpServer;
 let outputChannel;
-const historyPath = 'C:\\Users\\rodri\\.gemini\\antigravity\\output_logs\\history.json';
+const historyDir = 'C:\\Users\\rodri\\.gemini\\antigravity\\output_logs';
+const historyPath = path.join(historyDir, 'history.json');
 const exclusionsPath = path.join(__dirname, 'exclusions.json');
+
+function ensureDirectories() {
+    try {
+        if (!fs.existsSync(historyDir)) {
+            fs.mkdirSync(historyDir, { recursive: true });
+        }
+    } catch(e) {}
+}
 
 let WINDOW_EXCLUSION_LIST = [];
 let psDaemon;
@@ -109,6 +118,10 @@ async function callCDP(method, params = {}) {
                 reject(new Error('CDP timeout'));
             }
         }, 10000);
+    }).catch(err => {
+        // ignora erros de Runtime.enable que não afetam o funcionamento
+        if (method === 'Runtime.enable') return;
+        throw err;
     });
 }
 
@@ -136,9 +149,11 @@ async function testCDPConnection() {
     }
 }
 
-async function injectMessageViaCDP(text) {
+async function injectMessageViaCDP(text, retryCount = 0) {
+    const MAX_RETRIES = 2;
+    
     if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
-        outputChannel.appendLine(`⚠️ CDP: Não conectado, tentando reconectar...`);
+        outputChannel.appendLine(`⚠️ CDP: Não conectado, tentanto reconectar...`);
         const targets = await discoverAntigravityCDP();
         if (targets.length === 0) {
             throw new Error('Antigravity não encontrado');
@@ -147,7 +162,7 @@ async function injectMessageViaCDP(text) {
         await callCDP('Runtime.enable', {});
     }
     
-    outputChannel.appendLine(`💬 CDP: Injetando mensagem...`);
+    outputChannel.appendLine(`💬 CDP: Injetando "${text.substring(0, 30)}..."`);
     
     const safeText = JSON.stringify(text);
     
@@ -219,14 +234,147 @@ async function injectMessageViaCDP(text) {
         
         const value = result.result?.value;
         if (value?.ok) {
-            outputChannel.appendLine(`✅ CDP: Mensagem injetada (${value.method})`);
+            outputChannel.appendLine(`✅ CDP: Enviado (${value.method})`);
             return true;
         } else {
             outputChannel.appendLine(`❌ CDP: ${value?.reason || 'erro desconhecido'}`);
+            
+            // Retry se falhar
+            if (retryCount < MAX_RETRIES) {
+                outputChannel.appendLine(`🔄 CDP: Retry ${retryCount + 1}/${MAX_RETRIES}...`);
+                await new Promise(r => setTimeout(r, 1500));
+                return injectMessageViaCDP(text, retryCount + 1);
+            }
             return false;
         }
     } catch(e) {
         outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
+        
+        // Retry se der erro de conexão
+        if (retryCount < MAX_RETRIES && (e.message.includes('timeout') || e.message.includes('ECONNREFUSED'))) {
+            outputChannel.appendLine(`🔄 CDP: Reconectando e retry...`);
+            cdpWs = null;
+            cdpConnection = null;
+            await new Promise(r => setTimeout(r, 1000));
+return injectMessageViaCDP(text, retryCount + 1);
+        }
+        
+        return false;
+    }
+}
+
+async function checkForAttachedImage() {
+    if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
+        const targets = await discoverAntigravityCDP();
+        if (targets.length === 0) return null;
+        await connectCDP(targets[0].webSocketDebuggerUrl);
+        await callCDP('Runtime.enable', {});
+    }
+    
+    const CHECK_SCRIPT = `(async () => {
+        // Procura por elementos de imagem anexados预览
+        const imageSelectors = [
+            'img[src^="blob:"]',
+            'div[data-attached="true"] img',
+            '.attachment img',
+            '[role="attachment"] img',
+            'div.attach-item img',
+            'img.agate-image'
+        ];
+        
+        for (const sel of imageSelectors) {
+            const el = document.querySelector(sel);
+            if (el && el.offsetParent !== null) {
+                return { found: true, src: el.src, tag: el.tagName };
+            }
+        }
+        
+        // Procura por divs com imagens dentro do input
+        const inputContainer = document.querySelector('[data-lexical-editor="true"]')?.closest('div');
+        if (inputContainer) {
+            const images = inputContainer.querySelectorAll('img');
+            if (images.length > 0) {
+                return { found: true, src: images[0].src, count: images.length };
+            }
+        }
+        
+        return { found: false };
+    })()`;
+    
+    try {
+        const result = await callCDP('Runtime.evaluate', {
+            expression: CHECK_SCRIPT,
+            returnByValue: true,
+            awaitPromise: true
+        });
+        
+        return result.result?.value;
+    } catch(e) {
+        outputChannel.appendLine(`⚠️ CDP check image error: ${e.message}`);
+        return null;
+    }
+}
+
+async function injectImageAttachment(imagePath) {
+    outputChannel.appendLine(`🖼️ CDP: Injetando imagem...`);
+    
+    try {
+        await callCDP('Page.enable', {});
+        await callCDP('DOM.enable', {});
+        await callCDP('Page.setInterceptFileChooserDialog', { enabled: true });
+        
+        const INJECT_SCRIPT = `(async () => {
+            // Clica em "Add context" ou similar
+            const addBtn = Array.from(document.querySelectorAll('div, button'))
+                .find(el => (el.innerText || '').toLowerCase().includes('add context'));
+            
+            if (addBtn) {
+                addBtn.click();
+                await new Promise(r => setTimeout(r, 600));
+                
+                const mediaBtn = Array.from(document.querySelectorAll('div, button'))
+                    .find(el => (el.innerText || '').trim().toLowerCase() === 'media' && el.offsetParent !== null);
+                
+                if (mediaBtn) {
+                    mediaBtn.click();
+                    await new Promise(r => setTimeout(r, 400));
+                }
+            }
+            
+            // Procura input[type="file"]
+            const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
+            const input = inputs.find(i => i.offsetParent !== null) || inputs[0];
+            
+            if (input) {
+                input.dataset.agId = 'ag-' + Date.now();
+                return { ok: true, id: input.dataset.agId };
+            }
+            
+            return { ok: false, reason: 'input_not_found' };
+        })()`;
+        
+        const result = await callCDP('Runtime.evaluate', {
+            expression: INJECT_SCRIPT,
+            returnByValue: true,
+            awaitPromise: true
+        });
+        
+        const value = result.result?.value;
+        if (value?.ok) {
+            // Define o arquivo no input
+            await callCDP('DOM.setFileInputFiles', {
+                files: [imagePath],
+                objectId: value.id
+            });
+            
+            outputChannel.appendLine(`✅ CDP: Imagem injetada`);
+            return true;
+        }
+        
+        outputChannel.appendLine(`❌ CDP: ${value?.reason}`);
+        return false;
+    } catch(e) {
+        outputChannel.appendLine(`❌ CDP inject image error: ${e.message}`);
         return false;
     }
 }
@@ -283,18 +431,10 @@ async function activate(context) {
     outputChannel = vscode.window.createOutputChannel("Android Bridge");
     outputChannel.appendLine("Android Bridge: Modo Combine-and-Send Ativado");
     
+    ensureDirectories();
+    
     // Teste de conexão CDP
     setTimeout(() => testCDPConnection(), 2000);
-    
-    // Teste automático de injeção após 5 segundos
-    setTimeout(async () => {
-        outputChannel.appendLine(`🧪 CDP: Teste de injeção automática...`);
-        try {
-            await injectMessageViaCDP('Teste via CDP! 🤖');
-        } catch(e) {
-            outputChannel.appendLine(`❌ Teste falhou: ${e.message}`);
-        }
-    }, 5000);
     
     // Setup do State Manager Daemon em Background para Alt-Tab Instantâneo
     const psDaemonPath = path.join(os.tmpdir(), "antigravity_daemon.ps1");
@@ -808,29 +948,10 @@ while ($true) {
                         c.send(JSON.stringify({ type: 'HISTORY', payload: history }));
                     }
                 });
-                
-                // 1. SIMULAÇÃO DE TECLADO (Recortar para limpar o input)
-                outputChannel.appendLine("Simulando Ctrl+A e Ctrl+X via nut-js...");
-                await keyboard.pressKey(Key.LeftControl, Key.A);
-                await keyboard.releaseKey(Key.LeftControl, Key.A);
-                await keyboard.pressKey(Key.LeftControl, Key.X);
-                await keyboard.releaseKey(Key.LeftControl, Key.X);
-                
-                await new Promise(resolve => setTimeout(resolve, 200));
-                
-                let existingContent = "";
-                try {
-                    existingContent = await vscode.env.clipboard.readText();
-                } catch (err) {}
 
-                // 2. COMBINA OS TEXTOS
-                const trimmedExisting = existingContent.replace(/\s+$/, '');
-                const hasNewLine = existingContent.endsWith('\n') || existingContent.endsWith('\r');
-                const finalMsg = trimmedExisting ? `${trimmedExisting}${hasNewLine ? '\n' : ' '}${msg.trim()}` : msg.trim();
-                
-                // 3. ENVIO
-                await vscode.commands.executeCommand('antigravity.sendPromptToAgentPanel', finalMsg);
-                vscode.window.setStatusBarMessage(`✅ Recortado e Enviado`, 2000);
+                // ENVIO via CDP (imagem já está no campo se foi colada anteriormente)
+                await injectMessageViaCDP(msg);
+                vscode.window.setStatusBarMessage(`✅ Enviado via CDP`, 2000);
             } catch (e) {
                 outputChannel.appendLine(`Erro no fluxo: ${e.message}`);
             }
