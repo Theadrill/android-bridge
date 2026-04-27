@@ -21,6 +21,121 @@ let psDaemon;
 let pendingWindowsRequests = [];
 let windowsBuffer = "";
 
+// CDP Connection
+let cdpConnection = null;
+let cdpWs = null;
+const CDP_PORTS = [9000, 9222, 9223, 9224];
+let cdpIdCounter = 1;
+
+async function discoverAntigravityCDP() {
+    for (const port of CDP_PORTS) {
+        try {
+            const resp = await fetch(`http://127.0.0.1:${port}/json/list`);
+            const targets = await resp.json();
+            
+            const agTargets = targets.filter(t => {
+                const title = t.title?.toLowerCase() || '';
+                const url = t.url?.toLowerCase() || '';
+                return title.includes('antigravity') || 
+                       url.includes('workbench') || 
+                       url.includes('jetski');
+            });
+            
+            if (agTargets.length > 0) {
+                outputChannel.appendLine(`🔍 CDP: Encontrou ${agTargets.length} instância(s) na porta ${port}`);
+                return agTargets;
+            }
+        } catch(e) {
+            // Porta não disponível
+        }
+    }
+    return [];
+}
+
+async function connectCDP(wsUrl) {
+    return new Promise((resolve, reject) => {
+        cdpWs = new WebSocket(wsUrl);
+        
+        cdpWs.on('open', () => {
+            outputChannel.appendLine(`🔌 CDP: Conectado ao WebSocket`);
+            
+            cdpWs.on('message', (msg) => {
+                try {
+                    const data = JSON.parse(msg.toString());
+                    if (data.id && cdpConnection && cdpConnection.pending && cdpConnection.pending[data.id]) {
+                        const handler = cdpConnection.pending[data.id];
+                        delete cdpConnection.pending[data.id];
+                        if (data.error) {
+                            handler.reject(new Error(data.error.message));
+                        } else {
+                            handler.resolve(data.result);
+                        }
+                    }
+                } catch(e) {}
+            });
+            
+            cdpWs.on('error', (err) => {
+                outputChannel.appendLine(`⚠️ CDP WS Error: ${err.message}`);
+            });
+            
+            cdpWs.on('close', () => {
+                outputChannel.appendLine(`🔌 CDP: Desconectado`);
+                cdpConnection = null;
+                cdpWs = null;
+            });
+            
+            resolve(true);
+        });
+        
+        cdpWs.on('error', reject);
+    });
+}
+
+async function callCDP(method, params = {}) {
+    if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
+        throw new Error('CDP não conectado');
+    }
+    
+    const id = cdpIdCounter++;
+    return new Promise((resolve, reject) => {
+        if (!cdpConnection) cdpConnection = { pending: {} };
+        cdpConnection.pending[id] = { resolve, reject };
+        
+        cdpWs.send(JSON.stringify({ id, method, params }));
+        
+        setTimeout(() => {
+            if (cdpConnection && cdpConnection.pending[id]) {
+                delete cdpConnection.pending[id];
+                reject(new Error('CDP timeout'));
+            }
+        }, 10000);
+    });
+}
+
+async function testCDPConnection() {
+    outputChannel.appendLine(`🧪 CDP: Testando conexão...`);
+    
+    const targets = await discoverAntigravityCDP();
+    
+    if (targets.length === 0) {
+        outputChannel.appendLine(`❌ CDP: Nenhuma instância do Antigravity encontrada`);
+        outputChannel.appendLine(`   → Inicie o Antigravity com: antigravity . --remote-debugging-port=9000`);
+        return;
+    }
+    
+    outputChannel.appendLine(`📋 CDP: target = "${targets[0].title}"`);
+    
+    try {
+        await connectCDP(targets[0].webSocketDebuggerUrl);
+        
+        await callCDP('Runtime.enable', {});
+        
+        outputChannel.appendLine(`✅ CDP: Conexão estabelecida com sucesso!`);
+    } catch(e) {
+        outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
+    }
+}
+
 function loadExclusions() {
     try {
         if (fs.existsSync(exclusionsPath)) {
@@ -72,6 +187,9 @@ function saveHistory() {
 async function activate(context) {
     outputChannel = vscode.window.createOutputChannel("Android Bridge");
     outputChannel.appendLine("Android Bridge: Modo Combine-and-Send Ativado");
+    
+    // Teste de conexão CDP
+    setTimeout(() => testCDPConnection(), 2000);
     
     // Setup do State Manager Daemon em Background para Alt-Tab Instantâneo
     const psDaemonPath = path.join(os.tmpdir(), "antigravity_daemon.ps1");
