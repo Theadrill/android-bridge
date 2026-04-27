@@ -202,6 +202,39 @@ while ($true) {
     }
 
     httpServer = http.createServer((req, res) => {
+        if (req.method === 'POST' && req.url === '/upload-print') {
+            const formidable = require('formidable');
+            const form = new formidable.IncomingForm();
+            const uploadDir = path.join(__dirname, 'temp_screenshots');
+            
+            if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+            
+            form.parse(req, (err, fields, files) => {
+                if (err) {
+                    res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
+                    return;
+                }
+                
+                const file = files.image[0] || files.image;
+                const oldPath = file.filepath;
+                const newPath = path.join(uploadDir, 'last_print.png');
+                
+                fs.copyFileSync(oldPath, newPath);
+                
+                // Mágica Instantânea: PowerShell para Clipboard + Ctrl+V
+                const psCommand = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile('${newPath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose(); (New-Object -ComObject WScript.Shell).SendKeys('^v')"`;
+                
+                require('child_process').exec(psCommand, (psErr) => {
+                    if (psErr) outputChannel.appendLine(`⚠️ Erro no Clipboard: ${psErr.message}`);
+                });
+
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ success: true }));
+                outputChannel.appendLine(`📸 Print recebido e injetado no foco!`);
+            });
+            return;
+        }
+
         if (req.url === '/') {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(getWebpageContent(localIp, port));
@@ -483,8 +516,9 @@ while ($true) {
                 if (!msg) return;
 
                 // Adiciona o prompt do usuário ao histórico global imediatamente
+                const localISO = new Date(Date.now() - (new Date().getTimezoneOffset() * 60000)).toISOString().replace('Z', '');
                 const historyItem = { 
-                    timestamp: new Date().toISOString(), 
+                    timestamp: localISO, 
                     role: 'user', 
                     content: msg,
                     conversation_id: 'aaf9f81d-04aa-49d4-bd06-e72f1e3ec7db'
