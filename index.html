@@ -1018,7 +1018,7 @@
                             ENTER
                         </button>
 
-                        <button class="send-btn" onpointerdown="event.preventDefault(); sendAction('CTRL_ENTER')" style="flex: 1; margin: 0; height: 55px; background: #f59e0b; box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.3); font-size: 11px; padding: 0 5px;">
+                        <button class="send-btn" onclick="const txt = document.getElementById('free-msg').value; if(txt) { sendFreeText(); setTimeout(() => sendAction('CTRL_ENTER'), 100); } else { sendAction('CTRL_ENTER'); } closeModal();" style="flex: 1; margin: 0; height: 55px; background: #f59e0b; box-shadow: 0 4px 14px 0 rgba(245, 158, 11, 0.3); font-size: 11px; padding: 0 5px;">
                             CTRL+ENTER
                         </button>
                     </div>
