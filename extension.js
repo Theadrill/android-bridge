@@ -13,8 +13,7 @@ keyboard.config.autoDelayMs = 0;
 let wss;
 let httpServer;
 let outputChannel;
-let history = [];
-const historyPath = path.join(__dirname, 'history.json');
+const historyPath = 'C:\\Users\\rodri\\.gemini\\antigravity\\output_logs\\history.json';
 const exclusionsPath = path.join(__dirname, 'exclusions.json');
 
 let WINDOW_EXCLUSION_LIST = [];
@@ -38,11 +37,26 @@ function loadHistory() {
     try {
         if (fs.existsSync(historyPath)) {
             const data = fs.readFileSync(historyPath, 'utf8');
-            history = JSON.parse(data);
-            // Garante que o histórico esteja sempre ordenado: mais antigo primeiro
-            history.sort((a, b) => a.id - b.id);
+            const rawHistory = JSON.parse(data);
+            
+            // Normaliza o histórico para o formato de exibição
+            history = rawHistory.map(item => ({
+                id: item.id || new Date(item.timestamp || item.date).getTime(),
+                role: item.role === 'user' ? 'user' : 'assistant', // Padrão agora é assistant
+                text: item.text || item.content || '',
+                date: item.date || item.timestamp || new Date().toISOString()
+            }));
+
+            // Ordena por data (mais antigo primeiro)
+            history.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+            // Limita as últimas 50 mensagens
+            if (history.length > 50) history = history.slice(history.length - 50);
+        } else {
+            history = [];
         }
     } catch (e) {
+        if (outputChannel) outputChannel.appendLine(`Erro ao carregar histórico unificado: ${e.message}`);
         history = [];
     }
 }
@@ -158,6 +172,22 @@ while ($true) {
     
     loadHistory();
     loadExclusions();
+
+    // Adiciona um Watcher para atualizar o celular automaticamente quando a IA responder
+    if (fs.existsSync(historyPath)) {
+        fs.watch(historyPath, (eventType) => {
+            if (eventType === 'change') {
+                loadHistory();
+                if (wss) {
+                    wss.clients.forEach(c => {
+                        if (c.readyState === WebSocket.OPEN) {
+                            c.send(JSON.stringify({ type: 'HISTORY', payload: history }));
+                        }
+                    });
+                }
+            }
+        });
+    }
     
     const port = 4500;
     const networkInterfaces = os.networkInterfaces();
@@ -452,16 +482,28 @@ while ($true) {
                 const msg = data.msg || (typeof data === 'string' ? data : '');
                 if (!msg) return;
 
-                outputChannel.appendLine(`>> Recebido: "${msg}"`);
+                // Adiciona o prompt do usuário ao histórico global imediatamente
+                const historyItem = { 
+                    timestamp: new Date().toISOString(), 
+                    role: 'user', 
+                    content: msg,
+                    conversation_id: 'aaf9f81d-04aa-49d4-bd06-e72f1e3ec7db'
+                };
                 
-                // Adiciona ao histórico e salva
-                const historyItem = { id: Date.now(), text: msg, date: new Date().toISOString() };
-                history.push(historyItem); // Novo vai para o final
-                history.sort((a, b) => a.id - b.id); // Re-ordena apenas para garantir integridade
-                if (history.length > 50) history.shift(); // Remove o mais antigo (do topo) se passar de 50
-                saveHistory();
+                let currentLogs = [];
+                if (fs.existsSync(historyPath)) {
+                    try {
+                        currentLogs = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+                    } catch(e) {}
+                }
+                currentLogs.push(historyItem);
+                if (currentLogs.length > 100) currentLogs.shift();
+                fs.writeFileSync(historyPath, JSON.stringify(currentLogs, null, 2));
 
-                // Notifica todos os clientes do novo item
+                // Recarrega e envia para atualizar a tela do celular instantaneamente
+                loadHistory();
+
+                // Notifica todos os clientes
                 wss.clients.forEach(c => {
                     if (c.readyState === WebSocket.OPEN) {
                         c.send(JSON.stringify({ type: 'HISTORY', payload: history }));
