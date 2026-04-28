@@ -67,6 +67,102 @@ async function discoverAntigravityCDP() {
     return cdpTargets;
 }
 
+async function ensureScrapingActive() {
+    try {
+        if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
+            const targets = await discoverAntigravityCDP();
+            if (targets.length > 0) {
+                const target = getSelectedTarget();
+                if (target && target.webSocketDebuggerUrl) {
+                    await connectCDP(target.webSocketDebuggerUrl);
+                    await callCDP('Runtime.enable', {});
+                    await callCDP('Console.enable', {});
+                    outputChannel.appendLine(`🤖 CDP: Auto-conectado para Streaming.`);
+                }
+            }
+        }
+
+        if (cdpWs && cdpWs.readyState === WebSocket.OPEN) {
+            const scraperScript = `
+                (function() {
+                    const getStatus = () => {
+                        const stopBtn = document.querySelector('button[aria-label*="Stop"], button[title*="Stop"], .lucide-square');
+                        return !!(stopBtn && stopBtn.offsetParent !== null);
+                    };
+
+                    const readAndSync = () => {
+                        const chatContainer = document.querySelector('.flex-1.overflow-y-auto') || 
+                                              document.querySelector('main') || 
+                                              document.body;
+                        
+                        const allMessages = Array.from(chatContainer.querySelectorAll('.select-text'));
+                        
+                        let lastUserText = "";
+                        let lastAssistantHTML = "";
+                        
+                        const fileRegex = /^[a-zA-Z0-9_\\-]+\\.(js|html|css|json|ts|md|py|java|cpp|c|h|sh)$/i;
+                        
+                        for (let i = allMessages.length - 1; i >= 0; i--) {
+                            const msg = allMessages[i];
+                            const text = msg.innerText.trim();
+                            if (!text) continue;
+
+                            if (fileRegex.test(text) && text.length < 30) continue;
+
+                            const isAssistant = msg.classList.contains('leading-relaxed');
+                            
+                            if (isAssistant) {
+                                if (!lastAssistantHTML) {
+                                    let html = msg.innerHTML;
+                                    
+                                    // Se o HTML capturado for apenas texto puro ou markdown bruto
+                                    // preservamos as quebras de linha para não ficar tudo grudado
+                                    if (!html.includes('<p') && !html.includes('<ul') && !html.includes('<br')) {
+                                        // Substitui \n por <br> e envolve em um estilo que respeita espaços
+                                        html = '<div style="white-space: pre-wrap; word-break: break-word;">' + 
+                                               html.replace(/\\n/g, '<br>') + 
+                                               '</div>';
+                                    }
+                                    
+                                    let cleanHTML = html;
+                                    cleanHTML = cleanHTML.replace(/id="[^"]*"/g, "");
+                                    cleanHTML = cleanHTML.replace(/style="[^"]*"/g, "");
+                                    cleanHTML = cleanHTML.replace(/class="[^"]*(cursor|blink|animate)[^"]*"/g, "");
+                                    lastAssistantHTML = cleanHTML;
+                                }
+                            } else {
+                                const isUIElement = msg.closest('nav, aside, header, .tabs, [role="tablist"]');
+                                if (!lastUserText && !isUIElement && text.length > 1) {
+                                    lastUserText = text;
+                                }
+                            }
+                            
+                            if (lastUserText && lastAssistantHTML) break;
+                        }
+
+                        console.log("ANTIGRAVITY_STATUS:" + (getStatus() ? "GENERATING" : "IDLE"));
+                        
+                        if (lastUserText) console.log("ANTIGRAVITY_STREAM_PROMPT:" + lastUserText);
+                        if (lastAssistantHTML) console.log("ANTIGRAVITY_STREAM_RESPONSE:" + lastAssistantHTML);
+                        if (!lastUserText && !lastAssistantHTML) console.log("ANTIGRAVITY_STATUS:EMPTY_CHAT");
+                    };
+
+                    if (window.__antigravity_observer_active) {
+                        readAndSync();
+                        return "ALREADY_ACTIVE_REFRESHED";
+                    }
+                    window.__antigravity_observer_active = true;
+                    
+                    const observer = new MutationObserver(readAndSync);
+                    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+                    readAndSync(); // Executa a primeira vez
+                })();
+            `;
+            await callCDP('Runtime.evaluate', { expression: scraperScript });
+        }
+    } catch (e) {}
+}
+
 async function connectCDP(wsUrl) {
     return new Promise((resolve, reject) => {
         cdpWs = new WebSocket(wsUrl);
@@ -74,9 +170,51 @@ async function connectCDP(wsUrl) {
         cdpWs.on('open', () => {
             outputChannel.appendLine(`🔌 CDP: Conectado ao WebSocket`);
             
-            cdpWs.on('message', (msg) => {
+            cdpWs.on('message', async (dataStr) => {
                 try {
-                    const data = JSON.parse(msg.toString());
+                    const data = JSON.parse(dataStr);
+                    if (data.method === 'Runtime.consoleAPICalled') {
+                        const params = data.params;
+                        if (params.type === 'log' && params.args && params.args[0]) {
+                            const text = params.args[0].value;
+
+                            if (text && typeof text === 'string' && text.startsWith('ANTIGRAVITY_')) {
+                                let type = 'STREAMING_CHAT';
+                                let content = text;
+
+                                if (text.startsWith('ANTIGRAVITY_STATUS:')) {
+                                    type = 'STREAMING_STATUS';
+                                    content = text.replace('ANTIGRAVITY_STATUS:', '');
+                                } else if (text.startsWith('ANTIGRAVITY_STREAM_PROMPT:')) {
+                                    type = 'STREAMING_PROMPT';
+                                    content = text.replace('ANTIGRAVITY_STREAM_PROMPT:', '');
+                                } else if (text.startsWith('ANTIGRAVITY_STREAM_RESPONSE:')) {
+                                    type = 'STREAMING_CHAT';
+                                    content = text.replace('ANTIGRAVITY_STREAM_RESPONSE:', '');
+                                } else {
+                                    content = text.replace('ANTIGRAVITY_STREAM:', '');
+                                }
+                                
+                                // Filtrar mensagens de controle/debug
+                                if (content === 'SCRAPER_AUTO_INJETADO' || content === 'PULSE_ALIVE') {
+                                    return;
+                                }
+
+                                // Broadcast para todos os clientes conectados
+                                if (wss) {
+                                    wss.clients.forEach(client => {
+                                        if (client.readyState === WebSocket.OPEN) {
+                                            client.send(JSON.stringify({ 
+                                                type: type, 
+                                                payload: content 
+                                            }));
+                                        }
+                                    });
+                                }
+                            }
+                        }
+                    }
+
                     if (data.id && cdpConnection && cdpConnection.pending && cdpConnection.pending[data.id]) {
                         const handler = cdpConnection.pending[data.id];
                         delete cdpConnection.pending[data.id];
@@ -207,8 +345,10 @@ async function injectMessageViaCDP(text, retryCount = 0) {
         if (!editor) return { ok: false, reason: 'editor_not_found' };
         
         editor.focus();
-        document.execCommand?.("selectAll", false, null);
-        document.execCommand?.("delete", false, null);
+        
+        // Comentamos a limpeza para permitir que imagens coladas no PC continuem lá
+        // document.execCommand?.("selectAll", false, null);
+        // document.execCommand?.("delete", false, null);
         
         let inserted = false;
         try { inserted = !!document.execCommand?.("insertText", false, ${safeText}); } catch {}
@@ -455,8 +595,11 @@ async function activate(context) {
     
     ensureDirectories();
     
-    // Teste de conexão CDP
-    setTimeout(() => testCDPConnection(), 2000);
+    // Teste de conexão CDP e loop de auto-scraping via DOM
+    setTimeout(() => {
+        testCDPConnection();
+        setInterval(() => ensureScrapingActive(), 3000);
+    }, 2000);
     
     // Setup do State Manager Daemon em Background para Alt-Tab InstantÃ¢neo
     const psDaemonPath = path.join(os.tmpdir(), "antigravity_daemon.ps1");
