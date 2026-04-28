@@ -96,6 +96,11 @@
             background-color: rgb(30, 30, 36) !important; /* Cor sólida base */
         }
 
+        /* Corrigir sobreposição e bloquear min-height de blocos injetados */
+        #realtime-html-receiver * {
+            min-height: 0 !important;
+        }
+
         /* Preservar arredondamento original */
         .rounded-xl, .rounded-2xl, .rounded-3xl {
             overflow: hidden;
