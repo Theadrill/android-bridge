@@ -1,4 +1,4 @@
-﻿const vscode = require('vscode');
+const vscode = require('vscode');
 const WebSocket = require('ws');
 const http = require('http');
 const os = require('os');
@@ -91,61 +91,24 @@ async function ensureScrapingActive() {
                     };
 
                     const readAndSync = () => {
-                        const chatContainer = document.querySelector('.flex-1.overflow-y-auto') || 
-                                              document.querySelector('main') || 
-                                              document.body;
+                        const chatContainer = document.querySelector('#conversation .flex.flex-col.gap-y-3.px-4');
+                        if (!chatContainer) return;
                         
-                        const allMessages = Array.from(chatContainer.querySelectorAll('.select-text'));
+                        const blocks = Array.from(chatContainer.querySelectorAll(':scope > div'));
+                        if (blocks.length === 0) return;
                         
-                        let lastUserText = "";
-                        let lastAssistantHTML = "";
-                        
-                        const fileRegex = /^[a-zA-Z0-9_\\-]+\\.(js|html|css|json|ts|md|py|java|cpp|c|h|sh)$/i;
-                        
-                        for (let i = allMessages.length - 1; i >= 0; i--) {
-                            const msg = allMessages[i];
-                            const text = msg.innerText.trim();
-                            if (!text) continue;
-
-                            if (fileRegex.test(text) && text.length < 30) continue;
-
-                            const isAssistant = msg.classList.contains('leading-relaxed');
-                            
-                            if (isAssistant) {
-                                if (!lastAssistantHTML) {
-                                    let html = msg.innerHTML;
-                                    
-                                    // Se o HTML capturado for apenas texto puro ou markdown bruto
-                                    // preservamos as quebras de linha para não ficar tudo grudado
-                                    if (!html.includes('<p') && !html.includes('<ul') && !html.includes('<br')) {
-                                        // Substitui \n por <br> e envolve em um estilo que respeita espaços
-                                        html = '<div style="white-space: pre-wrap; word-break: break-word;">' + 
-                                               html.replace(/\\n/g, '<br>') + 
-                                               '</div>';
-                                    }
-                                    
-                                    let cleanHTML = html;
-                                    cleanHTML = cleanHTML.replace(/id="[^"]*"/g, "");
-                                    cleanHTML = cleanHTML.replace(/style="[^"]*"/g, "");
-                                    cleanHTML = cleanHTML.replace(/class="[^"]*(cursor|blink|animate)[^"]*"/g, "");
-                                    lastAssistantHTML = cleanHTML;
-                                }
-                            } else {
-                                const isUIElement = msg.closest('nav, aside, header, .tabs, [role="tablist"]');
-                                if (!lastUserText && !isUIElement && text.length > 1) {
-                                    lastUserText = text;
-                                }
-                            }
-                            
-                            if (lastUserText && lastAssistantHTML) break;
+                        // Captura os dois últimos blocos para garantir que pergunta e resposta apareçam
+                        let html = '';
+                        if (blocks.length >= 2) {
+                            html = blocks[blocks.length - 2].outerHTML + blocks[blocks.length - 1].outerHTML;
+                        } else {
+                            html = blocks[blocks.length - 1].outerHTML;
                         }
-
-                        console.log("ANTIGRAVITY_STATUS:" + (getStatus() ? "GENERATING" : "IDLE"));
                         
-                        if (lastUserText) console.log("ANTIGRAVITY_STREAM_PROMPT:" + lastUserText);
-                        if (lastAssistantHTML) console.log("ANTIGRAVITY_STREAM_RESPONSE:" + lastAssistantHTML);
-                        if (!lastUserText && !lastAssistantHTML) console.log("ANTIGRAVITY_STATUS:EMPTY_CHAT");
+                        console.log("ANTIGRAVITY_STATUS:" + (getStatus() ? "GENERATING" : "IDLE"));
+                        console.log("ANTIGRAVITY_STREAM_RESPONSE:" + html);
                     };
+
 
                     if (window.__antigravity_observer_active) {
                         readAndSync();
@@ -789,7 +752,22 @@ while ($true) {
         if (req.url === '/') {
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
             res.end(getWebpageContent(localIp, port));
-        } else { res.writeHead(404); res.end(); }
+            return;
+        } 
+        
+        // Interceptador inteligente para os SVGs do Antigravity
+        if (req.url.includes('/icons/')) {
+            const relativePath = req.url.substring(req.url.indexOf('/icons/') + 7);
+            const localIconPath = path.join(__dirname, 'icons', relativePath);
+            if (fs.existsSync(localIconPath)) {
+                res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+                res.end(fs.readFileSync(localIconPath));
+                return;
+            }
+        }
+
+        res.writeHead(404); 
+        res.end();
     });
     
     httpServer.listen(port, '0.0.0.0');
@@ -1058,6 +1036,40 @@ while ($true) {
                     }
                 } catch(e) {
                     outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
+                }
+                return;
+            }
+            
+            // CAPTURE_DOM - Captura a árvore DOM inteira do target atual
+            if (data.type === 'CAPTURE_DOM') {
+                if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
+                    outputChannel.appendLine(`❌ CDP não conectado para capturar DOM.`);
+                    return;
+                }
+                outputChannel.appendLine(`📸 CDP: Capturando DOM...`);
+                
+                const CAPTURE_SCRIPT = `document.documentElement.outerHTML`;
+                
+                try {
+                    const result = await callCDP('Runtime.evaluate', {
+                        expression: CAPTURE_SCRIPT,
+                        returnByValue: true,
+                        awaitPromise: true
+                    });
+                    
+                    const html = result.result?.value;
+                    if (html) {
+                        const fs = require('fs');
+                        const path = require('path');
+                        const capturePath = path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, 'chat_scraping_capture.html');
+                        fs.writeFileSync(capturePath, html, 'utf-8');
+                        outputChannel.appendLine(`✅ CDP: DOM Capturado e salvo em: ${capturePath}`);
+                        vscode.window.setStatusBarMessage(`✅ DOM Capturado com sucesso!`, 3000);
+                    } else {
+                        outputChannel.appendLine(`❌ CDP: Falha ao capturar DOM (HTML vazio)`);
+                    }
+                } catch(e) {
+                    outputChannel.appendLine(`❌ CDP Erro na captura: ${e.message}`);
                 }
                 return;
             }
