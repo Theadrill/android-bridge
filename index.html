@@ -1,47 +1,76 @@
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <title>IA Bridge</title>
-        <style>
-            :root {
-                --bg: #0a0a0c;
-                --card: #16161a;
-                --primary: #3b82f6;
-                --text: #ffffff;
-                --text-dim: #94a3b8;
-                --border: #2d2d33;
-            }
-            * { box-sizing: border-box; }
-            body { 
-                font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
-                background: var(--bg); 
-                color: var(--text); 
-                margin: 0; 
-                padding: 15px; 
-                display: flex;
-                flex-direction: column;
-                height: 100%;
-                width: 100%;
-                position: fixed;
-                top: 0;
-                left: 0;
-                box-sizing: border-box;
-                overflow: hidden;
-            }
-            #status { font-size: 9px; color: #555; margin-bottom: 2px; text-transform: uppercase; font-weight: bold; letter-spacing: 0.5px; opacity: 0.7; }
-            .connected { color: #10b981 !important; }
-            .disconnected { color: #ef4444 !important; }
+<!DOCTYPE html>
+<html>
 
-            .header { margin-bottom: 8px; }
-            h2 { color: var(--primary); margin: 0; font-size: 16px; letter-spacing: 0.5px; font-weight: 800; }
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>IA Bridge</title>
+    <style>
+        :root {
+            --bg: #0a0a0c;
+            --card: #16161a;
+            --primary: #3b82f6;
+            --text: #ffffff;
+            --text-dim: #94a3b8;
+            --border: #2d2d33;
+        }
 
-            #history-container {
-                display: flex;
-                flex-direction: column;
-                gap: 5px;
-            }
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            position: fixed;
+            top: 0;
+            left: 0;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        #status {
+            font-size: 9px;
+            color: #555;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+            opacity: 0.7;
+        }
+
+        .connected {
+            color: #10b981 !important;
+        }
+
+        .disconnected {
+            color: #ef4444 !important;
+        }
+
+        .header {
+            margin-bottom: 8px;
+        }
+
+        h2 {
+            color: var(--primary);
+            margin: 0;
+            font-size: 16px;
+            letter-spacing: 0.5px;
+            font-weight: 800;
+        }
+
+        #history-container {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
 
         header {
             background: var(--bg);
@@ -61,9 +90,20 @@
             padding: 4px 12px;
             margin-bottom: 0;
         }
-        body.compact-mode header h1 { font-size: 13px; margin: 0; }
-        body.compact-mode header .status-badge { margin: 0; font-size: 9px; }
-        body.compact-mode header #header-footer { display: none !important; }
+
+        body.compact-mode header h1 {
+            font-size: 13px;
+            margin: 0;
+        }
+
+        body.compact-mode header .status-badge {
+            margin: 0;
+            font-size: 9px;
+        }
+
+        body.compact-mode header #header-footer {
+            display: none !important;
+        }
 
         /* Media query apenas como fallback, sem conflito com a classe */
         @media (max-height: 500px) {
@@ -74,9 +114,20 @@
                 padding: 6px 12px;
                 margin-bottom: 0;
             }
-            header h1 { font-size: 13px; margin: 0; }
-            header .status-badge { margin: 0; font-size: 9px; }
-            header #header-footer { display: none !important; }
+
+            header h1 {
+                font-size: 13px;
+                margin: 0;
+            }
+
+            header .status-badge {
+                margin: 0;
+                font-size: 9px;
+            }
+
+            header #header-footer {
+                display: none !important;
+            }
         }
 
         .scroll-area {
@@ -89,604 +140,774 @@
             -webkit-overflow-scrolling: touch;
         }
 
-            .history-item {
+        .history-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-bottom: 24px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .bubble {
+            max-width: 90%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 13px;
+            line-height: 1.5;
+            position: relative;
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+
+        .bubble.user {
+            align-self: flex-end;
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .bubble.assistant {
+            align-self: flex-start;
+            background: #2d2d33;
+            color: #e2e8f0;
+            border-bottom-left-radius: 4px;
+            border: 1px solid #3d3d45;
+        }
+
+        .copy-bubble-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            padding: 4px 10px;
+            color: var(--text-dim);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            opacity: 0.7;
+        }
+
+        .copy-bubble-btn:hover {
+            opacity: 1;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--primary);
+        }
+
+        .copy-bubble-btn:active {
+            transform: scale(0.95);
+        }
+
+        .history-meta {
+            font-size: 9px;
+            color: var(--text-dim);
+            margin: 0 6px 4px 6px;
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .assistant-content code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: 'Cascadia Code', monospace;
+            font-size: 11px;
+            color: #fca5a5;
+        }
+
+        .assistant-content pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 8px;
+            overflow-x: auto;
+            border: 1px solid #333;
+            margin: 8px 0;
+        }
+
+        .copy-btn,
+        .action-btn {
+            background: #2d2d33;
+            border: none;
+            border-radius: 5px;
+            padding: 5px;
+            color: var(--primary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+            min-width: 30px;
+            height: 30px;
+        }
+
+        .copy-btn:active {
+            background: #3b82f633;
+            transform: scale(0.95);
+        }
+
+        .input-area {
+            background: var(--card);
+            padding: 12px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+        }
+
+        textarea {
+            width: 100%;
+            height: 60px;
+            background: rgba(255, 255, 255, 0.03);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 8px;
+            box-sizing: border-box;
+            font-size: 15px;
+            outline: none;
+            resize: none;
+            font-family: inherit;
+            margin-bottom: 10px;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            border-color: var(--primary);
+        }
+
+        .button-dock {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            width: 100%;
+            padding: 0;
+        }
+
+        .dock-scroll-container {
+            flex: 1;
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            padding: 6px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .dock-scroll-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .dock-btn {
+            flex-shrink: 0;
+            width: 44px;
+            height: 44px;
+            background: #2d2d33;
+            border: 1px solid #3d3d45;
+            border-radius: 10px;
+            color: #e2e8f0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.1s;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .dock-btn.fixed-left {
+            color: #fbbf24;
+            border-color: rgba(251, 191, 36, 0.2);
+        }
+
+        .dock-btn.fixed-right {
+            background: var(--primary);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .dock-btn:active {
+            transform: scale(0.92);
+            background: #444;
+        }
+
+        .send-btn-dock {
+            background: var(--primary) !important;
+            color: white !important;
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .send-btn-dock:active {
+            transform: scale(0.92);
+            filter: brightness(1.2);
+        }
+
+        #streaming-box {
+            font-size: 10px;
+            color: #6366f1;
+            background: #6366f111;
+            padding: 4px 8px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            text-align: left;
+            font-family: 'Cascadia Code', 'Consolas', monospace;
+            white-space: pre-wrap;
+            max-height: 30px;
+            overflow: hidden;
+            border: 1px solid #6366f122;
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 0;
+        }
+
+        .modal {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 24px;
+            width: 95%;
+            max-width: 320px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            animation: modalScale 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
+
+        .modal.full-width {
+            width: 100%;
+            max-width: none;
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+        }
+
+        #modal-content {
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        #modal-content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #modal-content::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 10px;
+        }
+
+        .scroll-area::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scroll-area {
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        @keyframes modalScale {
+            from {
+                transform: scale(0.85);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .modal h3 {
+            margin: 0 0 15px 0;
+            font-size: 18px;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .modal-btn {
+            width: 100%;
+            min-height: 50px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: #2d2d33;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        .modal-btn.window-item {
+            font-size: 12px;
+            justify-content: flex-start;
+            padding: 0 15px;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+            line-height: 50px;
+        }
+
+        .modal-btn:active {
+            transform: scale(0.96);
+            background: #3d3d45;
+        }
+
+        .modal-btn.cancel {
+            border: none;
+            background: transparent;
+            color: var(--text-dim);
+            margin-top: 5px;
+            flex-shrink: 0;
+        }
+
+        .landscape-only {
+            display: none !important;
+        }
+
+        .portrait-only {
+            display: flex !important;
+        }
+
+        /* Modo Landscape / Telas pequenas em altura */
+        @media (orientation: landscape) or (max-height: 450px) {
+            .landscape-only {
+                display: flex !important;
+            }
+
+            .portrait-only {
+                display: none !important;
+            }
+
+            #modal-content.touchpad-active {
+                flex-direction: row !important;
+                gap: 12px !important;
+                align-items: stretch !important;
+            }
+
+            .touchpad-side-controls {
+                width: 140px;
                 display: flex;
                 flex-direction: column;
-                gap: 2px;
-                margin-bottom: 24px;
-                animation: fadeIn 0.3s ease-out;
-            }
-
-            .bubble {
-                max-width: 90%;
-                padding: 10px 14px;
-                border-radius: 16px;
-                font-size: 13px;
-                line-height: 1.5;
-                position: relative;
-                word-break: break-word;
-                white-space: pre-wrap;
-            }
-
-            .bubble.user {
-                align-self: flex-end;
-                background: var(--primary);
-                color: white;
-                border-bottom-right-radius: 4px;
-                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
-            }
-
-            .bubble.assistant {
-                align-self: flex-start;
-                background: #2d2d33;
-                color: #e2e8f0;
-                border-bottom-left-radius: 4px;
-                border: 1px solid #3d3d45;
-            }
-
-            .copy-bubble-btn {
-                background: rgba(255,255,255,0.05);
-                border: 1px solid rgba(255,255,255,0.1);
-                border-radius: 6px;
-                padding: 4px 10px;
-                color: var(--text-dim);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: all 0.2s;
-                opacity: 0.7;
-            }
-
-            .copy-bubble-btn:hover { opacity: 1; background: rgba(255,255,255,0.1); color: var(--primary); }
-            .copy-bubble-btn:active { transform: scale(0.95); }
-
-            .history-meta {
-                font-size: 9px;
-                color: var(--text-dim);
-                margin: 0 6px 4px 6px;
-                text-transform: uppercase;
-                display: flex;
                 justify-content: space-between;
-                align-items: center;
-            }
-
-            .assistant-content code {
-                background: rgba(0,0,0,0.3);
-                padding: 2px 4px;
-                border-radius: 4px;
-                font-family: 'Cascadia Code', monospace;
-                font-size: 11px;
-                color: #fca5a5;
-            }
-
-            .assistant-content pre {
-                background: #000;
-                padding: 10px;
-                border-radius: 8px;
-                overflow-x: auto;
-                border: 1px solid #333;
-                margin: 8px 0;
-            }
-
-            .copy-btn, .action-btn {
-                background: #2d2d33;
-                border: none;
-                border-radius: 5px;
-                padding: 5px;
-                color: var(--primary);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                transition: background 0.2s;
-                min-width: 30px;
-                height: 30px;
-            }
-
-            .copy-btn:active {
-                background: #3b82f633;
-                transform: scale(0.95);
-            }
-
-            .input-area {
-                background: var(--card);
-                padding: 12px;
-                border-radius: 16px;
-                border: 1px solid var(--border);
-                box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-            }
-
-            textarea { 
-                width: 100%; 
-                height: 60px; 
-                background: rgba(255,255,255,0.03); 
-                color: white; 
-                border: 1px solid rgba(255,255,255,0.05); 
-                border-radius: 8px;
-                padding: 8px; 
-                box-sizing: border-box; 
-                font-size: 15px; 
-                outline: none; 
-                resize: none;
-                font-family: inherit;
-                margin-bottom: 10px;
-                transition: border-color 0.2s;
-            }
-
-            textarea:focus {
-                border-color: var(--primary);
-            }
-
-            .button-dock {
-                display: flex;
-                gap: 8px;
-                align-items: center;
-                width: 100%;
-                padding: 0;
-            }
-
-            .dock-scroll-container {
-                flex: 1;
-                display: flex;
-                gap: 8px;
-                overflow-x: auto;
-                scrollbar-width: none;
-                -ms-overflow-style: none;
-                padding: 6px;
-                background: rgba(255,255,255,0.04);
-                border-radius: 12px;
-                border: 1px solid rgba(255,255,255,0.05);
-            }
-            .dock-scroll-container::-webkit-scrollbar { display: none; }
-
-            .dock-btn {
                 flex-shrink: 0;
-                width: 44px;
-                height: 44px;
-                background: #2d2d33;
-                border: 1px solid #3d3d45;
-                border-radius: 10px;
-                color: #e2e8f0;
-                display: flex;
-                align-items: center;
+            }
+
+            .touchpad-side-controls .mouse-btns {
+                flex-direction: column !important;
+                flex: 1;
                 justify-content: center;
-                cursor: pointer;
-                transition: all 0.1s;
-                touch-action: manipulation;
-                user-select: none;
-                -webkit-tap-highlight-color: transparent;
+                gap: 8px !important;
             }
 
-            .dock-btn.fixed-left { color: #fbbf24; border-color: rgba(251, 191, 36, 0.2); }
-            .dock-btn.fixed-right { background: var(--primary); color: white; border: none; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); }
-                user-select: none;
-                -webkit-tap-highlight-color: transparent;
+            .touchpad-side-controls .mouse-btns .modal-btn {
+                flex: none !important;
+                height: 45px !important;
+                min-height: 45px !important;
+                padding: 0 !important;
             }
 
-            .dock-btn:active {
-                transform: scale(0.92);
-                background: #444;
-            }
-
-            .send-btn-dock { 
-                background: var(--primary) !important; 
-                color: white !important; 
-                border: none !important;
-                box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
-            }
-
-            .send-btn-dock:active {
-                transform: scale(0.92);
-                filter: brightness(1.2);
-            }
-
-            #streaming-box {
-                font-size: 10px;
-                color: #6366f1;
-                background: #6366f111;
-                padding: 4px 8px;
-                border-radius: 6px;
-                margin-bottom: 8px;
-                text-align: left;
-                font-family: 'Cascadia Code', 'Consolas', monospace;
-                white-space: pre-wrap;
-                max-height: 30px;
-                overflow: hidden;
-                border: 1px solid #6366f122;
-            }
-
-            /* Modal Styles */
-            .modal-overlay {
-                display: none;
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.85);
-                backdrop-filter: blur(4px);
-                z-index: 1000;
-                justify-content: center;
-                align-items: center;
-                padding: 0;
-            }
-
-            .modal {
-                background: var(--card);
-                border: 1px solid var(--border);
-                border-radius: 24px;
-                padding: 24px;
-                width: 95%;
-                max-width: 320px;
-                text-align: center;
-                box-shadow: 0 20px 50px rgba(0,0,0,0.6);
-                animation: modalScale 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-                display: flex;
-                flex-direction: column;
-                max-height: 80vh;
+            #touch-area {
+                margin-bottom: 0 !important;
             }
 
             .modal.full-width {
-                width: 100%;
-                max-width: none;
-                border-radius: 0;
-                border-left: none;
-                border-right: none;
+                height: 98vh !important;
             }
+        }
 
-            #modal-content {
-                overflow-y: auto;
-                padding-right: 5px;
-            }
+        /* Overlay de Sensibilidade */
+        #sens-settings-overlay {
+            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(8, 8, 10, 0.98);
+            z-index: 100;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            border-radius: 20px;
+            animation: fadeIn 0.2s ease-out;
+        }
 
-            #modal-content::-webkit-scrollbar { width: 4px; }
-            #modal-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        /* Fullscreen Fix */
+        :fullscreen .modal.full-width {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-height: 100vh !important;
+            border: none !important;
+            border-radius: 0 !important;
+        }
 
-            .scroll-area::-webkit-scrollbar { display: none; }
-            .scroll-area {
-                scrollbar-width: none;
-                -ms-overflow-style: none;
-            }
-            
-            @keyframes modalScale {
-                from { transform: scale(0.85); opacity: 0; }
-                to { transform: scale(1); opacity: 1; }
-            }
+        :fullscreen .modal-overlay {
+            padding: 0 !important;
+        }
 
-            .modal h3 { margin: 0 0 15px 0; font-size: 18px; color: var(--primary); flex-shrink: 0; }
+        .send-btn {
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-weight: 800;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+        }
 
-            .modal-btn {
-                width: 100%;
-                min-height: 50px;
-                margin-bottom: 12px;
-                border: 1px solid var(--border);
-                border-radius: 12px;
-                background: #2d2d33;
-                color: white;
-                font-weight: 600;
-                font-size: 14px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 10px;
-                cursor: pointer;
-                flex-shrink: 0;
-            }
+        .send-btn:active {
+            transform: scale(0.95);
+            filter: brightness(1.2);
+        }
+    </style>
+</head>
 
-            .modal-btn.window-item {
-                font-size: 12px;
-                justify-content: flex-start;
-                padding: 0 15px;
-                text-align: left;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                display: block;
-                line-height: 50px;
-            }
-
-            .modal-btn:active { transform: scale(0.96); background: #3d3d45; }
-            .modal-btn.cancel { border: none; background: transparent; color: var(--text-dim); margin-top: 5px; flex-shrink: 0; }
-
-            .landscape-only { display: none !important; }
-            .portrait-only { display: flex !important; }
-
-            /* Modo Landscape / Telas pequenas em altura */
-            @media (orientation: landscape) or (max-height: 450px) {
-                .landscape-only { display: flex !important; }
-                .portrait-only { display: none !important; }
-
-                #modal-content.touchpad-active {
-                    flex-direction: row !important;
-                    gap: 12px !important;
-                    align-items: stretch !important;
-                }
-                .touchpad-side-controls {
-                    width: 140px;
-                    display: flex;
-                    flex-direction: column;
-                    justify-content: space-between;
-                    flex-shrink: 0;
-                }
-                .touchpad-side-controls .mouse-btns {
-                    flex-direction: column !important;
-                    flex: 1;
-                    justify-content: center;
-                    gap: 8px !important;
-                }
-                .touchpad-side-controls .mouse-btns .modal-btn {
-                    flex: none !important;
-                    height: 45px !important;
-                    min-height: 45px !important;
-                    padding: 0 !important;
-                }
-                #touch-area {
-                    margin-bottom: 0 !important;
-                }
-                .modal.full-width {
-                    height: 98vh !important;
-                }
-            }
-
-            /* Overlay de Sensibilidade */
-            #sens-settings-overlay {
-                display: none;
-                position: absolute;
-                top: 0; left: 0; width: 100%; height: 100%;
-                background: rgba(8, 8, 10, 0.98);
-                z-index: 100;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                padding: 30px;
-                border-radius: 20px;
-                animation: fadeIn 0.2s ease-out;
-            }
-
-            /* Fullscreen Fix */
-            :fullscreen .modal.full-width {
-                width: 100vw !important;
-                height: 100vh !important;
-                max-height: 100vh !important;
-                border: none !important;
-                border-radius: 0 !important;
-            }
-            :fullscreen .modal-overlay { padding: 0 !important; }
-
-            .send-btn {
-                border: none;
-                border-radius: 12px;
-                color: white;
-                font-weight: 800;
-                font-size: 11px;
-                cursor: pointer;
-                transition: all 0.15s;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                padding: 0 5px;
-            }
-            .send-btn:active {
-                transform: scale(0.95);
-                filter: brightness(1.2);
-            }
-        </style>
-    </head>
-    <body>
-        <!-- Restart Modal -->
-        <div id="restart-modal" class="modal-overlay" onclick="closeModal(event)">
-            <div class="modal" onclick="event.stopPropagation()">
-                <h3 id="modal-title">OTHER ACTIONS</h3>
-                <div id="modal-content">
-                    <button class="modal-btn" onclick="ws.send(JSON.stringify({ type: 'MESSAGE', msg: 'faça o commit e Sync' })); closeModal();" style="color: #10b981;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path><line x1="12" y1="2" x2="12" y2="8"></line><line x1="12" y1="16" x2="12" y2="22"></line></svg>
-                        Commit e Sync
-                    </button>
-                    <button class="modal-btn" onclick="execRestart('RESTART_EXT')">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
-                        Restart Extension
-                    </button>
-                    <button class="modal-btn" onclick="execRestart('REFRESH_F5')">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 4v6h-6"></path><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-                        Refresh (F5)
-                    </button>
-                    <button class="modal-btn" onclick="execRestart('RESTART_PROJECT')">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-                        Restart Project (npm)
-                    </button>
-                    <button class="modal-btn" onclick="getWindows()" style="color: #60a5fa;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                        Alt Tab
-                    </button>
-<button class="modal-btn" onclick="openFreeWriting()" style="color: #c084fc;">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.01"></path><path d="M10 8h.01"></path><path d="M14 8h.01"></path><path d="M18 8h.01"></path><path d="M6 12h.01"></path><path d="M10 12h.01"></path><path d="M14 12h.01"></path><path d="M18 12h.01"></path><path d="M6 16h.01"></path><path d="M10 16h.01"></path><path d="M14 16h.01"></path><path d="M18 16h.01"></path></svg>
-                        Escrever Livremente
-                    </button>
-                </div>
-                <button id="main-cancel-btn" class="modal-btn cancel" onclick="closeModal()" style="margin-bottom: 0;">CANCELAR</button>
-            </div>
-        </div>
-        
-        <header>
-            <h1>ANTIGRAVITY BRIDGE</h1>
-            <div class="status-badge" id="status">
-                <div class="status-dot"></div>
-                <span id="status-text">DESCONECTADO</span>
-            </div>
-            <div id="header-footer" style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 10px;">
-                <h2 style="margin: 0; font-size: 11px; color: var(--text-dim); letter-spacing: 1px;">HISTÓRICO DE CONVERSA</h2>
-                <button class="action-btn" onclick="ws.send(JSON.stringify({ type: 'GET_HISTORY' }))" style="padding: 4px 10px; font-size: 10px; height: auto;">ATUALIZAR</button>
-            </div>
-        </header>
-
-        <div class="scroll-area" id="main-scroll">
-            <div id="history-container">
-                <!-- Itens de histórico entram aqui -->
-            </div>
-        </div>
-
-        <div class="input-area">
-            <textarea id="msg" 
-                placeholder="Dite algo..." 
-                onkeydown="checkEnter(event)" 
-                autocomplete="on" 
-                autocorrect="on" 
-                autocapitalize="sentences" 
-                spellcheck="true"
-                inputmode="text"></textarea>
-            
-            <div class="button-dock">
-                <!-- FIXO ESQUERDA -->
-                <button class="dock-btn fixed-left" onclick="openModal()" title="Outras Ações">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path></svg>
+<body>
+    <!-- Restart Modal -->
+    <div id="restart-modal" class="modal-overlay" onclick="closeModal(event)">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h3 id="modal-title">OTHER ACTIONS</h3>
+            <div id="modal-content">
+                <button class="modal-btn"
+                    onclick="ws.send(JSON.stringify({ type: 'MESSAGE', msg: 'faÃ§a o commit e Sync' })); closeModal();"
+                    style="color: #10b981;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path>
+                        <path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path>
+                        <line x1="12" y1="2" x2="12" y2="8"></line>
+                        <line x1="12" y1="16" x2="12" y2="22"></line>
+                    </svg>
+                    Commit e Sync
                 </button>
-
-                <!-- ESTEIRA ROLÁVEL -->
-                <div class="dock-scroll-container">
-                    <button class="dock-btn" onclick="openTouchpad()" title="Touchpad Mode" style="color: #a78bfa;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="2" width="14" height="20" rx="7" ry="7"></rect><path d="M12 6v4"></path></svg>
-                    </button>
-                    <button class="dock-btn" onclick="sendAction('COPY')" title="Copiar" style="color: #94a3b8;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                    </button>
-                    <button class="dock-btn" onclick="sendAction('PASTE')" title="Colar" style="color: #60a5fa;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>
-                    </button>
-                    <button class="dock-btn" onclick="sendAction('ENTER')" title="Enter / Pular Linha" style="color: #10b981;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 10 4 15 9 20"></polyline><path d="M20 4v7a4 4 0 0 1-4 4H4"></path></svg>
-                    </button>
-                    <button class="dock-btn" onclick="sendAction('BACKSPACE')" title="Backspace">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path><line x1="18" y1="9" x2="12" y2="15"></line><line x1="12" y1="9" x2="18" y2="15"></line></svg>
-                    </button>
-                    <button class="dock-btn" onclick="sendAction('SAVE')" title="Salvar (Ctrl+S)" style="color: #ef4444;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-                    </button>
-                </div>
-
-                <!-- FIXO DIREITA -->
-                <button class="dock-btn fixed-right" onclick="send()" id="send-btn">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                <button class="modal-btn" onclick="execRestart('RESTART_EXT')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                    </svg>
+                    Restart Extension
+                </button>
+                <button class="modal-btn" onclick="execRestart('REFRESH_F5')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 4v6h-6"></path>
+                        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                    </svg>
+                    Refresh (F5)
+                </button>
+                <button class="modal-btn" onclick="execRestart('RESTART_PROJECT')">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="4 17 10 11 4 5"></polyline>
+                        <line x1="12" y1="19" x2="20" y2="19"></line>
+                    </svg>
+                    Restart Project (npm)
+                </button>
+                <button class="modal-btn" onclick="getWindows()" style="color: #60a5fa;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                    Alt Tab
+                </button>
+                <button class="modal-btn" onclick="openFreeWriting()" style="color: #c084fc;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
+                        <path d="M6 8h.01"></path>
+                        <path d="M10 8h.01"></path>
+                        <path d="M14 8h.01"></path>
+                        <path d="M18 8h.01"></path>
+                        <path d="M6 12h.01"></path>
+                        <path d="M10 12h.01"></path>
+                        <path d="M14 12h.01"></path>
+                        <path d="M18 12h.01"></path>
+                        <path d="M6 16h.01"></path>
+                        <path d="M10 16h.01"></path>
+                        <path d="M14 16h.01"></path>
+                        <path d="M18 16h.01"></path>
+                    </svg>
+                    Escrever Livremente
                 </button>
             </div>
+            <button id="main-cancel-btn" class="modal-btn cancel" onclick="closeModal()"
+                style="margin-bottom: 0;">CANCELAR</button>
         </div>
+    </div>
 
-        <script>
-            let ws;
-            let isReconnected = false;
-            let sensitivity = localStorage.getItem('sensitivity') ? parseFloat(localStorage.getItem('sensitivity')) : 1.5;
-            let activeModifiers = { CTRL: false, ALT: false, SHIFT: false, WIN: false };
+    <header>
+        <h1>ANTIGRAVITY BRIDGE</h1>
+        <div class="status-badge" id="status">
+            <div class="status-dot"></div>
+            <span id="status-text">DESCONECTADO</span>
+        </div>
+        <div id="header-footer"
+            style="display: flex; justify-content: space-between; align-items: center; width: 100%; margin-top: 10px;">
+            <h2 style="margin: 0; font-size: 11px; color: var(--text-dim); letter-spacing: 1px;">HISTÓRICO DE CONVERSA
+            </h2>
+            <button class="action-btn" onclick="ws.send(JSON.stringify({ type: 'GET_HISTORY' }))"
+                style="padding: 4px 10px; font-size: 10px; height: auto;">ATUALIZAR</button>
+        </div>
+    </header>
 
-            function toggleModifier(mod) {
-                activeModifiers[mod] = !activeModifiers[mod];
-                window.navigator.vibrate && window.navigator.vibrate(10);
-                // Se estiver no modal de funções, re-renderiza para mostrar o estado ativo
-                const title = document.getElementById('modal-title');
-                if (title && title.innerText === 'TECLADO DE FUNÇÃO') {
-                    openFunctionKeys();
-                }
+    <div class="scroll-area" id="main-scroll">
+        <div id="history-container">
+            <!-- Itens de histÃ³rico entram aqui -->
+        </div>
+    </div>
+
+    <div class="input-area">
+        <textarea id="msg" placeholder="Dite algo..." onkeydown="checkEnter(event)" autocomplete="on" autocorrect="on"
+            autocapitalize="sentences" spellcheck="true" inputmode="text"></textarea>
+
+        <div class="button-dock">
+            <!-- FIXO ESQUERDA -->
+            <button class="dock-btn fixed-left" onclick="openModal()" title="Outras Ações">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                </svg>
+            </button>
+
+            <!-- ESTEIRA ROLÁVEL -->
+            <div class="dock-scroll-container">
+                <button class="dock-btn" onclick="console.log('chat btn clicked'); openChatSelector();"
+                    title="Escolher Chat" style="color: #f472b6;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </button>
+                <button class="dock-btn" onclick="console.log('model btn clicked'); openModelSelector();"
+                    title="Selecionar Modelo" style="color: #a78bfa;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="10" r="3"></circle>
+                        <path d="M12 6v1"></path>
+                        <path d="M9 13h6"></path>
+                    </svg>
+                </button>
+                <button class="dock-btn" onclick="openTouchpad()" title="Touchpad Mode" style="color: #a78bfa;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="5" y="2" width="14" height="20" rx="7" ry="7"></rect>
+                        <path d="M12 6v4"></path>
+                    </svg>
+                </button>
+                <button class="dock-btn" onclick="sendAction('COPY')" title="Copiar" style="color: #94a3b8;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                </button>
+                <button class="dock-btn" onclick="sendAction('PASTE')" title="Colar" style="color: #60a5fa;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                        <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                    </svg>
+                </button>
+                <button class="dock-btn" onclick="sendAction('ENTER')" title="Enter / Pular Linha"
+                    style="color: #10b981;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9 10 4 15 9 20"></polyline>
+                        <path d="M20 4v7a4 4 0 0 1-4 4H4"></path>
+                    </svg>
+                </button>
+                <button class="dock-btn" onclick="sendAction('BACKSPACE')" title="Backspace">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"></path>
+                        <line x1="18" y1="9" x2="12" y2="15"></line>
+                        <line x1="12" y1="9" x2="18" y2="15"></line>
+                    </svg>
+                </button>
+                <button class="dock-btn" onclick="sendAction('SAVE')" title="Salvar (Ctrl+S)" style="color: #ef4444;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <polyline points="7 3 7 8 15 8"></polyline>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- FIXO DIREITA -->
+            <button class="dock-btn fixed-right" onclick="send()" id="send-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let ws;
+        let isReconnected = false;
+        let sensitivity = localStorage.getItem('sensitivity') ? parseFloat(localStorage.getItem('sensitivity')) : 1.5;
+        let activeModifiers = { CTRL: false, ALT: false, SHIFT: false, WIN: false };
+
+        function toggleModifier(mod) {
+            activeModifiers[mod] = !activeModifiers[mod];
+            window.navigator.vibrate && window.navigator.vibrate(10);
+            // Se estiver no modal de funções, re-renderiza para mostrar o estado ativo
+            const title = document.getElementById('modal-title');
+            if (title && title.innerText === 'TECLADO DE FUNÇÃO') {
+                openFunctionKeys();
+            }
+        }
+
+        function initKeyboardDetection() {
+            if (window.visualViewport) {
+                window.visualViewport.addEventListener('resize', () => {
+                    const vh = window.visualViewport.height;
+                    const fullH = window.innerHeight;
+
+                    // Garante que o body tenha exatamente a altura visível
+                    document.body.style.height = vh + 'px';
+
+                    // Força o window a ficar no topo (bloqueia o salto do navegador)
+                    window.scrollTo(0, 0);
+
+                    const isKeyboardVisible = vh < fullH * 0.85;
+                    const isLandscape = vh < 500;
+
+                    if (isKeyboardVisible || isLandscape) {
+                        document.body.classList.add('compact-mode');
+                    } else {
+                        document.body.classList.remove('compact-mode');
+                    }
+
+                    setTimeout(scrollToBottom, 100);
+                });
             }
 
-            function initKeyboardDetection() {
-                if (window.visualViewport) {
-                    window.visualViewport.addEventListener('resize', () => {
-                        const vh = window.visualViewport.height;
-                        const fullH = window.innerHeight;
-                        
-                        // Garante que o body tenha exatamente a altura visível
-                        document.body.style.height = vh + 'px';
-                        
-                        // Força o window a ficar no topo (bloqueia o salto do navegador)
-                        window.scrollTo(0, 0);
-                        
-                        const isKeyboardVisible = vh < fullH * 0.85;
-                        const isLandscape = vh < 500;
-
-                        if (isKeyboardVisible || isLandscape) {
-                            document.body.classList.add('compact-mode');
-                        } else {
-                            document.body.classList.remove('compact-mode');
-                        }
-                        
-                        setTimeout(scrollToBottom, 100);
-                    });
+            // Trava de scroll adicional para navegadores teimosos
+            window.addEventListener('scroll', () => {
+                if (document.activeElement.tagName === 'TEXTAREA') {
+                    window.scrollTo(0, 0);
                 }
-                
-                // Trava de scroll adicional para navegadores teimosos
-                window.addEventListener('scroll', () => {
-                    if (document.activeElement.tagName === 'TEXTAREA') {
-                        window.scrollTo(0, 0);
-                    }
-                }, { passive: false });
-            }
-            initKeyboardDetection();
+            }, { passive: false });
+        }
+        initKeyboardDetection();
 
-            function connect() {
-                const status = document.getElementById('status');
-                ws = new WebSocket('ws://' + window.location.host);
-                
-                ws.onopen = () => {
-                    status.innerText = '● CONECTADO';
-                    status.className = 'connected';
-                    ws.send(JSON.stringify({ type: 'HELLO', reconnected: isReconnected }));
-                    isReconnected = false;
-                };
+        function connect() {
+            const status = document.getElementById('status');
+            ws = new WebSocket('ws://' + window.location.host);
 
-                ws.onmessage = (e) => {
-                    const d = JSON.parse(e.data);
-                    
-                    if(d.type === 'UPDATE') {
-                        const s = document.getElementById('streaming-box');
-                        s.innerText = d.payload;
-                    }
+            ws.onopen = () => {
+                status.innerText = '● CONECTADO';
+                status.className = 'connected';
+                ws.send(JSON.stringify({ type: 'HELLO', reconnected: isReconnected }));
+                isReconnected = false;
+            };
 
-                    if(d.type === 'HISTORY') {
-                        renderHistory(d.payload);
-                    }
+            ws.onmessage = (e) => {
+                const d = JSON.parse(e.data);
 
-                    if(d.type === 'COMMAND' && d.action === 'REFRESH') {
-                        window.location.reload();
-                    }
-
-                    if(d.type === 'WINDOWS_LIST') {
-                        renderWindowList(d.payload);
-                    }
-                };
-
-                ws.onclose = () => {
-                    status.innerText = '○ DESCONECTADO - RECONECTANDO...';
-                    status.className = 'disconnected';
-                    isReconnected = true; 
-                    setTimeout(connect, 2000);
-                };
-
-                ws.onerror = () => { ws.close(); };
-            }
-
-            function renderHistory(history) {
-                const container = document.getElementById('history-container');
-                const scrollArea = document.getElementById('main-scroll');
-                container.innerHTML = '';
-                
-                if (!history || history.length === 0) {
-                    container.innerHTML = '<div style="color: #444; margin-top: 20px; text-align: center;">Nenhuma mensagem encontrada</div>';
-                    return;
+                if (d.type === 'UPDATE') {
+                    const s = document.getElementById('streaming-box');
+                    s.innerText = d.payload;
                 }
 
-                history.forEach((item, i) => {
-                    const role = item.role || 'user';
-                    const text = item.text || item.content || '';
-                    const date = item.date || item.timestamp || new Date().toISOString();
-                    const formattedDate = date.substring(11, 16);
+                if (d.type === 'HISTORY') {
+                    renderHistory(d.payload);
+                }
 
-                    const itemDiv = document.createElement('div');
-                    itemDiv.className = 'history-item';
-                    
-                    let contentHtml = role === 'assistant' ? formatAssistantText(text) : escapeHtml(text);
+                if (d.type === 'COMMAND' && d.action === 'REFRESH') {
+                    window.location.reload();
+                }
 
-                    itemDiv.innerHTML = `
+                if (d.type === 'WINDOWS_LIST') {
+                    renderWindowList(d.payload);
+                }
+
+                if (d.type === 'TARGETS') {
+                    handleTargets(d);
+                }
+
+                if (d.type === 'MODELS') {
+                    handleModels(d);
+                }
+            };
+
+            ws.onclose = () => {
+                status.innerText = '○ DESCONECTADO - RECONECTANDO...';
+                status.className = 'disconnected';
+                isReconnected = true;
+                setTimeout(connect, 2000);
+            };
+
+            ws.onerror = () => { ws.close(); };
+        }
+
+        function renderHistory(history) {
+            const container = document.getElementById('history-container');
+            const scrollArea = document.getElementById('main-scroll');
+            container.innerHTML = '';
+
+            if (!history || history.length === 0) {
+                container.innerHTML = '<div style="color: #444; margin-top: 20px; text-align: center;">Nenhuma mensagem encontrada</div>';
+                return;
+            }
+
+            history.forEach((item, i) => {
+                const role = item.role || 'user';
+                const text = item.text || item.content || '';
+                const date = item.date || item.timestamp || new Date().toISOString();
+                const formattedDate = date.substring(11, 16);
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'history-item';
+
+                let contentHtml = role === 'assistant' ? formatAssistantText(text) : escapeHtml(text);
+
+                itemDiv.innerHTML = `
                         <div class="history-meta">
                             <span>${role.toUpperCase()}</span>
                             <span>${formattedDate}</span>
@@ -699,163 +920,163 @@
                             </button>
                         </div>
                     `;
-                    container.appendChild(itemDiv);
-                });
+                container.appendChild(itemDiv);
+            });
 
-                scrollArea.scrollTop = scrollArea.scrollHeight;
-                window.currentHistory = history;
-            }
+            scrollArea.scrollTop = scrollArea.scrollHeight;
+            window.currentHistory = history;
+        }
 
-            function formatAssistantText(text) {
-                // Parser extremamente simples para blocos de código e negrito
-                let html = escapeHtml(text);
-                
-                // Code blocks (```code```)
-                html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
-                
-                // Inline code (`code`)
-                html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-                
-                // Bold (**text**)
-                html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        function formatAssistantText(text) {
+            // Parser extremamente simples para blocos de código e negrito
+            let html = escapeHtml(text);
 
-                return `<div class="assistant-content">${html}</div>`;
-            }
+            // Code blocks (```code```)
+            html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
 
-            function escapeHtml(text) {
-                const div = document.createElement('div');
-                div.textContent = text;
-                return div.innerHTML;
-            }
+            // Inline code (`code`)
+            html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 
-            async function copyToInput(id, event) {
-                event && event.preventDefault();
-                const item = window.currentHistory.find(h => h.id == id);
-                if (item) {
-                    const textarea = document.getElementById('msg');
-                    textarea.value = item.text;
-                    textarea.focus();
-                    
-                    // Tenta copiar para o clipboard do smartphone
-                    let copied = false;
-                    try {
-                        // Tenta o método moderno primeiro (pode falhar em HTTP)
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                            await navigator.clipboard.writeText(item.text);
-                            copied = true;
-                        }
-                    } catch (err) {}
+            // Bold (**text**)
+            html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
-                    // Fallback para HTTP / Navegadores antigos
-                    if (!copied) {
-                        try {
-                            const tempInput = document.createElement('textarea');
-                            tempInput.value = item.text;
-                            tempInput.style.position = 'fixed';
-                            tempInput.style.left = '-9999px';
-                            tempInput.style.top = '0';
-                            document.body.appendChild(tempInput);
-                            tempInput.select();
-                            tempInput.setSelectionRange(0, 99999);
-                            document.execCommand('copy');
-                            document.body.removeChild(tempInput);
-                            copied = true;
-                        } catch (err) {
-                            console.error('Falha no fallback de cópia:', err);
-                        }
-                    }
+            return `<div class="assistant-content">${html}</div>`;
+        }
 
-                    if (copied) {
-                        // Feedback visual no botão
-                        const btn = event.currentTarget;
-                        const oldHtml = btn.innerHTML;
-                        btn.innerHTML = '✅';
-                        setTimeout(() => btn.innerHTML = oldHtml, 1000);
-                    }
-                }
-            }
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
 
-            async function copyBubbleText(btn, index) {
+        async function copyToInput(id, event) {
+            event && event.preventDefault();
+            const item = window.currentHistory.find(h => h.id == id);
+            if (item) {
+                const textarea = document.getElementById('msg');
+                textarea.value = item.text;
+                textarea.focus();
+
+                // Tenta copiar para o clipboard do smartphone
+                let copied = false;
                 try {
-                    const textToCopy = window.currentHistory[index].text || window.currentHistory[index].content || '';
-                    await navigator.clipboard.writeText(textToCopy);
-                    const oldHtml = btn.innerHTML;
-                    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
-                    window.navigator.vibrate && window.navigator.vibrate(20);
-                    setTimeout(() => btn.innerHTML = oldHtml, 1500);
-                } catch (err) {
-                    // Fallback para ambientes sem Clipboard API
-                    const textarea = document.createElement('textarea');
-                    textarea.value = text;
-                    document.body.appendChild(textarea);
-                    textarea.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(textarea);
-                    btn.innerHTML = '✅';
-                    setTimeout(() => btn.innerHTML = oldHtml, 1500);
-                }
-            }
-
-            function checkEnter(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    send();
-                }
-            }
-
-            function send() {
-                const m = document.getElementById('msg');
-                if(m.value.trim() && ws.readyState === WebSocket.OPEN){ 
-                    ws.send(JSON.stringify({ type: 'MESSAGE', msg: m.value })); 
-                    m.value = ''; 
-                }
-            }
-
-            function toggleFullscreen() {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.log('Erro ao entrar em fullscreen:', err);
-                    });
-                } else {
-                    document.exitFullscreen();
-                }
-                closeModal();
-            }
-
-            function sendAction(action) {
-                if(ws.readyState === WebSocket.OPEN) {
-                    const mods = Object.keys(activeModifiers).filter(k => activeModifiers[k]);
-                    ws.send(JSON.stringify({ type: 'KEY_SIM', action: action, modifiers: mods }));
-                    
-                    // Limpa modificadores após o uso (comportamento sticky)
-                    if (mods.length > 0) {
-                        activeModifiers = { CTRL: false, ALT: false, SHIFT: false, WIN: false };
-                        const title = document.getElementById('modal-title');
-                        if (title && (title.innerText === 'TECLADO DE FUNÇÃO' || title.innerText === 'ESCREVER LIVREMENTE')) {
-                            // Pequeno delay para o usuário ver o estado ativo antes de limpar (opcional)
-                            setTimeout(openFunctionKeys, 100);
-                        }
+                    // Tenta o método moderno primeiro (pode falhar em HTTP)
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(item.text);
+                        copied = true;
                     }
-                    
-                    window.navigator.vibrate && window.navigator.vibrate(10);
+                } catch (err) { }
+
+                // Fallback para HTTP / Navegadores antigos
+                if (!copied) {
+                    try {
+                        const tempInput = document.createElement('textarea');
+                        tempInput.value = item.text;
+                        tempInput.style.position = 'fixed';
+                        tempInput.style.left = '-9999px';
+                        tempInput.style.top = '0';
+                        document.body.appendChild(tempInput);
+                        tempInput.select();
+                        tempInput.setSelectionRange(0, 99999);
+                        document.execCommand('copy');
+                        document.body.removeChild(tempInput);
+                        copied = true;
+                    } catch (err) {
+                        console.error('Falha no fallback de cópia:', err);
+                    }
+                }
+
+                if (copied) {
+                    // Feedback visual no botão
+                    const btn = event.currentTarget;
+                    const oldHtml = btn.innerHTML;
+                    btn.innerHTML = '✅';
+                    setTimeout(() => btn.innerHTML = oldHtml, 1000);
                 }
             }
+        }
 
-            function openModal() {
-                const modalDiv = document.querySelector('.modal');
-                modalDiv.classList.remove('full-width');
-                modalDiv.style.height = '';
-                modalDiv.style.maxHeight = '80vh';
-                modalDiv.style.padding = '24px';
-                modalDiv.style.marginTop = '';
-                
-                const title = document.getElementById('modal-title');
-                const content = document.getElementById('modal-content');
-                content.style.display = 'block';
-                content.style.height = 'auto';
-                
-                title.innerText = 'OTHER ACTIONS';
-                content.innerHTML = `
+        async function copyBubbleText(btn, index) {
+            try {
+                const textToCopy = window.currentHistory[index].text || window.currentHistory[index].content || '';
+                await navigator.clipboard.writeText(textToCopy);
+                const oldHtml = btn.innerHTML;
+                btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                window.navigator.vibrate && window.navigator.vibrate(20);
+                setTimeout(() => btn.innerHTML = oldHtml, 1500);
+            } catch (err) {
+                // Fallback para ambientes sem Clipboard API
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                btn.innerHTML = '✅';
+                setTimeout(() => btn.innerHTML = oldHtml, 1500);
+            }
+        }
+
+        function checkEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                send();
+            }
+        }
+
+        function send() {
+            const m = document.getElementById('msg');
+            if (m.value.trim() && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'MESSAGE', msg: m.value }));
+                m.value = '';
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('Erro ao entrar em fullscreen:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+            closeModal();
+        }
+
+        function sendAction(action) {
+            if (ws.readyState === WebSocket.OPEN) {
+                const mods = Object.keys(activeModifiers).filter(k => activeModifiers[k]);
+                ws.send(JSON.stringify({ type: 'KEY_SIM', action: action, modifiers: mods }));
+
+                // Limpa modificadores após o uso (comportamento sticky)
+                if (mods.length > 0) {
+                    activeModifiers = { CTRL: false, ALT: false, SHIFT: false, WIN: false };
+                    const title = document.getElementById('modal-title');
+                    if (title && (title.innerText === 'TECLADO DE FUNÇÃO' || title.innerText === 'ESCREVER LIVREMENTE')) {
+                        // Pequeno delay para o usuário ver o estado ativo antes de limpar (opcional)
+                        setTimeout(openFunctionKeys, 100);
+                    }
+                }
+
+                window.navigator.vibrate && window.navigator.vibrate(10);
+            }
+        }
+
+        function openModal() {
+            const modalDiv = document.querySelector('.modal');
+            modalDiv.classList.remove('full-width');
+            modalDiv.style.height = '';
+            modalDiv.style.maxHeight = '80vh';
+            modalDiv.style.padding = '24px';
+            modalDiv.style.marginTop = '';
+
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            content.style.display = 'block';
+            content.style.height = 'auto';
+
+            title.innerText = 'OTHER ACTIONS';
+            content.innerHTML = `
                     <button class="modal-btn" onclick="ws.send(JSON.stringify({ type: 'MESSAGE', msg: 'faça o commit e Sync' })); closeModal();" style="color: #10b981;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"></path><line x1="12" y1="2" x2="12" y2="8"></line><line x1="12" y1="16" x2="12" y2="22"></line></svg>
                         Commit e Sync
@@ -875,6 +1096,10 @@
                     <button class="modal-btn" onclick="getWindows()" style="color: #60a5fa;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
                         Alt Tab
+                    </button>
+                    <button class="modal-btn" onclick="openChatSelector()" style="color: #f472b6;">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        Escolher Chat
                     </button>
                     <button class="modal-btn" onclick="openFreeWriting()" style="color: #c084fc;">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><path d="M6 8h.01"></path><path d="M10 8h.01"></path><path d="M14 8h.01"></path><path d="M18 8h.01"></path><path d="M6 12h.01"></path><path d="M10 12h.01"></path><path d="M14 12h.01"></path><path d="M18 12h.01"></path><path d="M6 16h.01"></path><path d="M10 16h.01"></path><path d="M14 16h.01"></path><path d="M18 16h.01"></path></svg>
@@ -897,97 +1122,179 @@
                         Fullscreen
                     </button>
                 `;
-                document.getElementById('restart-modal').style.display = 'flex';
-                window.navigator.vibrate && window.navigator.vibrate(20);
+            document.getElementById('restart-modal').style.display = 'flex';
+            window.navigator.vibrate && window.navigator.vibrate(20);
+        }
+
+        function closeModal(e) {
+            if (e && e.target !== e.currentTarget) return;
+            const restartModal = document.getElementById('restart-modal');
+            if (restartModal) restartModal.style.display = 'none';
+
+            const mainCancel = document.getElementById('main-cancel-btn');
+            if (mainCancel) mainCancel.style.display = 'block';
+
+            const modal = document.querySelector('.modal');
+            if (modal) {
+                modal.classList.remove('full-width');
+                modal.style.height = '';
+                modal.style.maxHeight = '80vh';
+                modal.style.padding = '24px';
             }
 
-            function closeModal(e) {
-                if (e && e.target !== e.currentTarget) return;
-                const restartModal = document.getElementById('restart-modal');
-                if (restartModal) restartModal.style.display = 'none';
-                
-                const mainCancel = document.getElementById('main-cancel-btn');
-                if (mainCancel) mainCancel.style.display = 'block';
+            const title = document.getElementById('modal-title');
+            if (title) title.style.display = 'block';
 
-                const modal = document.querySelector('.modal');
-                if (modal) {
-                    modal.classList.remove('full-width');
-                    modal.style.height = '';
-                    modal.style.maxHeight = '80vh';
-                    modal.style.padding = '24px';
-                }
-                
-                const title = document.getElementById('modal-title');
-                if (title) title.style.display = 'block';
-
-                const content = document.getElementById('modal-content');
-                if (content) {
-                    content.classList.remove('touchpad-active');
-                    content.style.display = 'block';
-                    content.style.height = 'auto';
-                }
-                
-                // Reset de modificadores ao fechar
-                activeModifiers = { CTRL: false, ALT: false, SHIFT: false, WIN: false };
+            const content = document.getElementById('modal-content');
+            if (content) {
+                content.classList.remove('touchpad-active');
+                content.style.display = 'block';
+                content.style.height = 'auto';
             }
 
-            function openAltTab() {
+            // Reset de modificadores ao fechar
+            activeModifiers = { CTRL: false, ALT: false, SHIFT: false, WIN: false };
+        }
+
+        function openAltTab() {
+            openModal();
+            getWindows();
+        }
+
+        function getWindows() {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'KEY_SIM', action: 'GET_WINDOWS' }));
+                document.getElementById('modal-title').innerText = 'BUSCANDO JANELAS...';
+            }
+        }
+
+        function renderWindowList(windows) {
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            title.innerText = 'ALT TAB';
+            content.innerHTML = '';
+
+            if (windows.length === 0) {
+                content.innerHTML = '<div style="color: #666; padding: 20px;">Nenhuma janela encontrada</div>';
+            } else {
+                windows.forEach(w => {
+                    const btn = document.createElement('button');
+                    btn.className = 'modal-btn window-item';
+                    btn.innerText = w.title;
+                    btn.onclick = () => switchWindow(w.id, w.title);
+                    content.appendChild(btn);
+                });
+            }
+
+            // Botão de Voltar
+            const backBtn = document.createElement('button');
+            backBtn.className = 'modal-btn';
+            backBtn.style.marginTop = '10px';
+            backBtn.style.background = 'transparent';
+            backBtn.style.borderColor = '#444';
+            backBtn.innerHTML = '← Voltar';
+            backBtn.onclick = openModal;
+            content.appendChild(backBtn);
+        }
+
+        function switchWindow(id, title) {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'KEY_SIM', action: 'SWITCH_WINDOW', windowId: id, title: title }));
+                // Ao invés de fechar, volta para o menu principal de ações
                 openModal();
-                getWindows();
             }
+        }
 
-            function getWindows() {
-                if(ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'KEY_SIM', action: 'GET_WINDOWS' }));
-                    document.getElementById('modal-title').innerText = 'BUSCANDO JANELAS...';
-                }
+        function openChatSelector() {
+            console.log('openChatSelector called');
+            ws.send(JSON.stringify({ type: 'GET_TARGETS' }));
+            const modal = document.getElementById('restart-modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            title.innerText = 'ESCOLHER CHAT';
+            content.innerHTML = `<div style="text-align: center; color: #9ca3af; padding: 20px;">Carregando chats...</div>`;
+            modal.style.display = 'flex';
+            window.navigator.vibrate && window.navigator.vibrate(20);
+        }
+
+        function handleTargets(data) {
+            console.log('handleTargets', data);
+            const modal = document.getElementById('restart-modal');
+            const content = document.getElementById('modal-content');
+            console.log('modal:', modal, 'content:', content);
+            if (!data.targets || data.targets.length === 0) {
+                content.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 20px;">Nenhum chat encontrado</div>`;
+                return;
             }
+            let html = `<div style="display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto;">`;
+            data.targets.forEach((t, i) => {
+                const selected = i === data.selectedIndex ? 'background: rgba(59, 130, 246, 0.3); border-color: #3b82f6;' : '';
+                html += `<button class="modal-btn" onclick="selectTarget(${i})" style="${selected} text-align: left; justify-content: flex-start;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f472b6" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                        ${t.title || 'Chat ' + (i + 1)}
+                    </button>`;
+            });
+            html += `</div>`;
+            content.innerHTML = html;
+            modal.style.display = 'flex';
+        }
 
-            function renderWindowList(windows) {
-                const title = document.getElementById('modal-title');
-                const content = document.getElementById('modal-content');
-                title.innerText = 'ALT TAB';
-                content.innerHTML = '';
-                
-                if (windows.length === 0) {
-                    content.innerHTML = '<div style="color: #666; padding: 20px;">Nenhuma janela encontrada</div>';
-                } else {
-                    windows.forEach(w => {
-                        const btn = document.createElement('button');
-                        btn.className = 'modal-btn window-item';
-                        btn.innerText = w.title;
-                        btn.onclick = () => switchWindow(w.id, w.title);
-                        content.appendChild(btn);
-                    });
-                }
-                
-                // Botão de Voltar
-                const backBtn = document.createElement('button');
-                backBtn.className = 'modal-btn';
-                backBtn.style.marginTop = '10px';
-                backBtn.style.background = 'transparent';
-                backBtn.style.borderColor = '#444';
-                backBtn.innerHTML = '← Voltar';
-                backBtn.onclick = openModal;
-                content.appendChild(backBtn);
+        function selectTarget(index) {
+            ws.send(JSON.stringify({ type: 'SELECT_TARGET', index }));
+            closeModal();
+            window.navigator.vibrate && window.navigator.vibrate(50);
+        }
+
+        function openModelSelector() {
+            console.log('openModelSelector called');
+            ws.send(JSON.stringify({ type: 'GET_MODELS' }));
+            const modal = document.getElementById('restart-modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            title.innerText = 'SELECIONAR MODELO';
+            content.innerHTML = `<div style="text-align: center; color: #9ca3af; padding: 20px;">Carregando modelos...</div>`;
+            modal.style.display = 'flex';
+            window.navigator.vibrate && window.navigator.vibrate(20);
+        }
+
+        function handleModels(data) {
+            const modal = document.getElementById('restart-modal');
+            const content = document.getElementById('modal-content');
+            window.availableModels = data.models; // Store for selection
+
+            if (!data.models || data.models.length === 0) {
+                content.innerHTML = `<div style="text-align: center; color: #ef4444; padding: 20px;">Nenhum modelo encontrado</div>`;
+                return;
             }
+            let html = `<div style="display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow-y: auto;">`;
+            data.models.forEach((m, i) => {
+                const selected = i === data.selectedIndex ? 'background: rgba(167, 139, 250, 0.3); border-color: #a78bfa;' : '';
+                html += `<button class="modal-btn" onclick="selectModel(${i})" style="${selected} text-align: left; justify-content: flex-start;">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><circle cx="12" cy="12" r="10"></circle></svg>
+                        ${m}
+                    </button>`;
+            });
+            html += `</div>`;
+            content.innerHTML = html;
+            modal.style.display = 'flex';
+        }
 
-            function switchWindow(id, title) {
-                if(ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'KEY_SIM', action: 'SWITCH_WINDOW', windowId: id, title: title }));
-                    // Ao invés de fechar, volta para o menu principal de ações
-                    openModal();
-                }
-            }
+        function selectModel(index) {
+            const modelName = window.availableModels[index];
+            ws.send(JSON.stringify({ type: 'SELECT_MODEL', index, modelName }));
 
-            function openFreeWriting() {
-                const modalDiv = document.querySelector('.modal');
-                modalDiv.classList.add('full-width');
-                modalDiv.style.marginTop = '-25vh';
-                const title = document.getElementById('modal-title');
-                const content = document.getElementById('modal-content');
-                title.innerText = 'ESCREVER LIVREMENTE';
-                content.innerHTML = `
+            closeModal();
+            window.navigator.vibrate && window.navigator.vibrate(50);
+        }
+
+        function openFreeWriting() {
+            const modalDiv = document.querySelector('.modal');
+            modalDiv.classList.add('full-width');
+            modalDiv.style.marginTop = '-25vh';
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            title.innerText = 'ESCREVER LIVREMENTE';
+            content.innerHTML = `
                     <textarea id="free-msg" 
                         placeholder="Digite texto livre para o PC..." 
                         style="height: 100px; margin-bottom: 12px; font-size: 15px; background: rgba(255,255,255,0.03); color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px; width: 100%; box-sizing: border-box; outline: none; font-family: inherit;"
@@ -1042,223 +1349,223 @@
                         ← Voltar
                     </button>
                 `;
-                // Foca no novo textarea
-                setTimeout(() => document.getElementById('free-msg').focus(), 300);
-            }
+            // Foca no novo textarea
+            setTimeout(() => document.getElementById('free-msg').focus(), 300);
+        }
 
-            function openFunctionKeys() {
-                const modalDiv = document.querySelector('.modal');
-                modalDiv.classList.add('full-width');
-                modalDiv.style.maxHeight = '95vh';
-                const title = document.getElementById('modal-title');
-                const content = document.getElementById('modal-content');
-                title.innerText = 'TECLADO DE FUNÇÃO';
-                
-                let html = '';
-                
-                // Seção de Modificadores
-                html += '<div style="margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px;">';
-                html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; text-align: left; letter-spacing: 1px;">Modificadores</div>';
-                html += '<div style="display: flex; gap: 8px;">';
-                
-                const mods = [
-                    { id: 'CTRL', label: 'CTRL' },
-                    { id: 'ALT', label: 'ALT' },
-                    { id: 'SHIFT', label: 'SHIFT' },
-                    { id: 'WIN', label: 'WIN' }
-                ];
-                
-                mods.forEach(m => {
-                    const isActive = activeModifiers[m.id];
-                    const style = `flex: 1; margin: 0; height: 36px; font-size: 11px; min-height: 36px; ${isActive ? 'background: var(--primary); border-color: var(--primary); color: white;' : 'background: #1e1e24; color: #888;'}`;
-                    html += `<button class="modal-btn" style="${style}" onclick="toggleModifier('${m.id}')">${m.label}</button>`;
-                });
-                
-                html += '</div></div>';
-                
-                // Seção F1-F12 com Scroll
-                html += '<div style="margin-bottom: 10px;">';
-                html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; text-align: left; letter-spacing: 1px;">Teclas de Função (F1-F12)</div>';
-                html += '<div class="custom-scrollbar-container">';
-                html += '<div class="scroll-area" onscroll="updateCustomScrollbar(this)" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 98px; overflow-y: auto; padding-right: 4px; padding-bottom: 2px;">';
-                for(let i=1; i<=12; i++) {
-                    html += `<button class="modal-btn" style="margin:0; height: 45px; font-size: 13px; min-height: 45px;" onclick="sendAction('F${i}')">F${i}</button>`;
-                }
-                html += '</div>';
-                html += '<div class="custom-scrollbar-track"></div>';
-                html += '<div class="custom-scrollbar-thumb" id="custom-thumb"></div>';
-                html += '</div></div>';
-                
-                // Seção Outras Teclas
-                html += '<div style="margin-bottom: 10px; border-top: 1px solid #333; padding-top: 10px;">';
-                html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; text-align: left; letter-spacing: 1px;">Teclas Especiais</div>';
-                html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">';
-                
-                // Outras teclas
-                const extraKeys = [
-                    { id: 'ESC', label: 'ESC', color: '#94a3b8' },
-                    { id: 'HOME', label: 'HOME' },
-                    { id: 'END', label: 'END' },
-                    { id: 'PAGE_UP', label: 'PG UP' },
-                    { id: 'PAGE_DOWN', label: 'PG DN' },
-                    { id: 'TAB', label: 'TAB', color: '#60a5fa' },
-                    { id: 'PRINT', label: 'PRINT' },
-                    { id: 'INSERT', label: 'INS' },
-                    { id: 'DELETE', label: 'DEL', color: '#ef4444' },
-                    { id: 'BACKSPACE', label: 'BKSP', color: '#fbbf24' },
-                    { id: 'STD_ENTER', label: 'ENTR', color: '#10b981' },
-                    { id: 'TOUCHPAD', label: 'TCHPD', color: '#c084fc' }
-                ];
-                
-                extraKeys.forEach(k => {
-                    const style = `margin:0; height: 45px; font-size: 13px; min-height: 45px; color: ${k.color || '#a78bfa'}; border-color: ${(k.color || '#a78bfa') + '44'};`;
-                    const action = k.id === 'TOUCHPAD' ? 'openTouchpad()' : `sendAction('${k.id}')`;
-                    html += `<button class="modal-btn" style="${style}" onclick="${action}">${k.label}</button>`;
-                });
-                
-                html += '</div></div>';
-                
-                // Seção de Navegação (Setas)
-                html += '<div style="margin-bottom: 15px; border-top: 1px solid #333; padding-top: 10px;">';
-                html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 10px; text-align: left; letter-spacing: 1px;">Navegação</div>';
-                
-                html += '<div style="display: flex; justify-content: center; gap: 25px;">';
-                
-                // Cima e Baixo
-                html += '<div style="display: flex; gap: 8px;">';
-                html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('UP')">▲</button>`;
-                html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('DOWN')">▼</button>`;
-                html += '</div>';
-                
-                // Esquerda e Direita
-                html += '<div style="display: flex; gap: 8px;">';
-                html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('LEFT')">◀</button>`;
-                html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('RIGHT')">▶</button>`;
-                html += '</div>';
-                
-                html += '</div></div>';
-                
-                // Botão Voltar
-                html += `
+        function openFunctionKeys() {
+            const modalDiv = document.querySelector('.modal');
+            modalDiv.classList.add('full-width');
+            modalDiv.style.maxHeight = '95vh';
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            title.innerText = 'TECLADO DE FUNÇÃO';
+
+            let html = '';
+
+            // Seção de Modificadores
+            html += '<div style="margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 10px;">';
+            html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; text-align: left; letter-spacing: 1px;">Modificadores</div>';
+            html += '<div style="display: flex; gap: 8px;">';
+
+            const mods = [
+                { id: 'CTRL', label: 'CTRL' },
+                { id: 'ALT', label: 'ALT' },
+                { id: 'SHIFT', label: 'SHIFT' },
+                { id: 'WIN', label: 'WIN' }
+            ];
+
+            mods.forEach(m => {
+                const isActive = activeModifiers[m.id];
+                const style = `flex: 1; margin: 0; height: 36px; font-size: 11px; min-height: 36px; ${isActive ? 'background: var(--primary); border-color: var(--primary); color: white;' : 'background: #1e1e24; color: #888;'}`;
+                html += `<button class="modal-btn" style="${style}" onclick="toggleModifier('${m.id}')">${m.label}</button>`;
+            });
+
+            html += '</div></div>';
+
+            // Seção F1-F12 com Scroll
+            html += '<div style="margin-bottom: 10px;">';
+            html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; text-align: left; letter-spacing: 1px;">Teclas de Função (F1-F12)</div>';
+            html += '<div class="custom-scrollbar-container">';
+            html += '<div class="scroll-area" onscroll="updateCustomScrollbar(this)" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; max-height: 98px; overflow-y: auto; padding-right: 4px; padding-bottom: 2px;">';
+            for (let i = 1; i <= 12; i++) {
+                html += `<button class="modal-btn" style="margin:0; height: 45px; font-size: 13px; min-height: 45px;" onclick="sendAction('F${i}')">F${i}</button>`;
+            }
+            html += '</div>';
+            html += '<div class="custom-scrollbar-track"></div>';
+            html += '<div class="custom-scrollbar-thumb" id="custom-thumb"></div>';
+            html += '</div></div>';
+
+            // Seção Outras Teclas
+            html += '<div style="margin-bottom: 10px; border-top: 1px solid #333; padding-top: 10px;">';
+            html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 6px; text-align: left; letter-spacing: 1px;">Teclas Especiais</div>';
+            html += '<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;">';
+
+            // Outras teclas
+            const extraKeys = [
+                { id: 'ESC', label: 'ESC', color: '#94a3b8' },
+                { id: 'HOME', label: 'HOME' },
+                { id: 'END', label: 'END' },
+                { id: 'PAGE_UP', label: 'PG UP' },
+                { id: 'PAGE_DOWN', label: 'PG DN' },
+                { id: 'TAB', label: 'TAB', color: '#60a5fa' },
+                { id: 'PRINT', label: 'PRINT' },
+                { id: 'INSERT', label: 'INS' },
+                { id: 'DELETE', label: 'DEL', color: '#ef4444' },
+                { id: 'BACKSPACE', label: 'BKSP', color: '#fbbf24' },
+                { id: 'STD_ENTER', label: 'ENTR', color: '#10b981' },
+                { id: 'TOUCHPAD', label: 'TCHPD', color: '#c084fc' }
+            ];
+
+            extraKeys.forEach(k => {
+                const style = `margin:0; height: 45px; font-size: 13px; min-height: 45px; color: ${k.color || '#a78bfa'}; border-color: ${(k.color || '#a78bfa') + '44'};`;
+                const action = k.id === 'TOUCHPAD' ? 'openTouchpad()' : `sendAction('${k.id}')`;
+                html += `<button class="modal-btn" style="${style}" onclick="${action}">${k.label}</button>`;
+            });
+
+            html += '</div></div>';
+
+            // Seção de Navegação (Setas)
+            html += '<div style="margin-bottom: 15px; border-top: 1px solid #333; padding-top: 10px;">';
+            html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 10px; text-align: left; letter-spacing: 1px;">Navegação</div>';
+
+            html += '<div style="display: flex; justify-content: center; gap: 25px;">';
+
+            // Cima e Baixo
+            html += '<div style="display: flex; gap: 8px;">';
+            html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('UP')">▲</button>`;
+            html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('DOWN')">▼</button>`;
+            html += '</div>';
+
+            // Esquerda e Direita
+            html += '<div style="display: flex; gap: 8px;">';
+            html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('LEFT')">◀</button>`;
+            html += `<button class="modal-btn" style="margin:0; height: 45px; width: 60px; font-size: 18px;" onclick="sendAction('RIGHT')">▶</button>`;
+            html += '</div>';
+
+            html += '</div></div>';
+
+            // Botão Voltar
+            html += `
                     <button class="modal-btn" onclick="openModal()" style="background: transparent; border-color: #444; min-height: 45px;">
                         ← Voltar
                     </button>
                 `;
-                
-                content.innerHTML = html;
-                
-                // Inicializa a scrollbar customizada após a renderização
-                setTimeout(() => {
-                    const scrollArea = document.querySelector('.scroll-area');
-                    if (scrollArea) updateCustomScrollbar(scrollArea);
-                }, 10);
-            }
-            
-            function openMediaKeys() {
-                const modalDiv = document.querySelector('.modal');
-                const title = document.getElementById('modal-title');
-                const content = document.getElementById('modal-content');
-                title.innerText = 'MÍDIA E BRILHO';
-                
-                let html = '';
-                
-                // Volume
-                html += '<div style="margin-bottom: 20px;">';
-                html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 12px; text-align: left; letter-spacing: 1px;">Áudio</div>';
-                html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
-                html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #ef4444;" onclick="sendAction('MUTE')">🔇 Mute</button>`;
-                html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #3b82f6;" onclick="sendAction('VOL_DOWN')">🔉 Vol -</button>`;
-                html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #3b82f6;" onclick="sendAction('VOL_UP')">🔊 Vol +</button>`;
-                html += '</div></div>';
-                
-                // Brilho
-                html += '<div style="margin-bottom: 25px; border-top: 1px solid #333; padding-top: 15px;">';
-                html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 12px; text-align: left; letter-spacing: 1px;">Brilho</div>';
-                html += '<div style="display: flex; gap: 10px;">';
-                html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #f59e0b;" onclick="sendAction('BRIGHT_DOWN')">🔅 Brilho -</button>`;
-                html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #f59e0b;" onclick="sendAction('BRIGHT_UP')">🔆 Brilho +</button>`;
-                html += '</div></div>';
-                
-                // Botão Voltar
-                html += `
+
+            content.innerHTML = html;
+
+            // Inicializa a scrollbar customizada após a renderização
+            setTimeout(() => {
+                const scrollArea = document.querySelector('.scroll-area');
+                if (scrollArea) updateCustomScrollbar(scrollArea);
+            }, 10);
+        }
+
+        function openMediaKeys() {
+            const modalDiv = document.querySelector('.modal');
+            const title = document.getElementById('modal-title');
+            const content = document.getElementById('modal-content');
+            title.innerText = 'MÍDIA E BRILHO';
+
+            let html = '';
+
+            // Volume
+            html += '<div style="margin-bottom: 20px;">';
+            html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 12px; text-align: left; letter-spacing: 1px;">Áudio</div>';
+            html += '<div style="display: flex; gap: 10px; flex-wrap: wrap;">';
+            html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #ef4444;" onclick="sendAction('MUTE')">🔇 Mute</button>`;
+            html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #3b82f6;" onclick="sendAction('VOL_DOWN')">🔉 Vol -</button>`;
+            html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #3b82f6;" onclick="sendAction('VOL_UP')">🔊 Vol +</button>`;
+            html += '</div></div>';
+
+            // Brilho
+            html += '<div style="margin-bottom: 25px; border-top: 1px solid #333; padding-top: 15px;">';
+            html += '<div style="font-size: 10px; color: #666; text-transform: uppercase; margin-bottom: 12px; text-align: left; letter-spacing: 1px;">Brilho</div>';
+            html += '<div style="display: flex; gap: 10px;">';
+            html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #f59e0b;" onclick="sendAction('BRIGHT_DOWN')">🔅 Brilho -</button>`;
+            html += `<button class="modal-btn" style="margin:0; flex: 1; height: 50px; background: #f59e0b;" onclick="sendAction('BRIGHT_UP')">🔆 Brilho +</button>`;
+            html += '</div></div>';
+
+            // Botão Voltar
+            html += `
                     <button class="modal-btn" onclick="openModal()" style="background: transparent; border-color: #444; min-height: 45px;">
                         ← Voltar
                     </button>
                 `;
-                
-                content.innerHTML = html;
+
+            content.innerHTML = html;
+        }
+
+        function sendFreeText() {
+            const m = document.getElementById('free-msg');
+            if (m.value.trim() && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'FREE_TEXT', msg: m.value }));
+                m.value = '';
+                window.navigator.vibrate && window.navigator.vibrate(20);
             }
+        }
 
-            function sendFreeText() {
-                const m = document.getElementById('free-msg');
-                if(m.value.trim() && ws.readyState === WebSocket.OPEN){ 
-                    ws.send(JSON.stringify({ type: 'FREE_TEXT', msg: m.value })); 
-                    m.value = ''; 
-                    window.navigator.vibrate && window.navigator.vibrate(20);
-                }
+        function checkFreeEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendFreeText();
             }
+        }
 
-            function checkFreeEnter(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendFreeText();
-                }
-            }
+        function insertNewLine() {
+            const m = document.getElementById('free-msg');
+            const start = m.selectionStart;
+            const end = m.selectionEnd;
+            const top = m.scrollTop;
+            m.value = m.value.substring(0, start) + "\n" + m.value.substring(end);
+            m.selectionStart = m.selectionEnd = start + 1;
+            m.scrollTop = top;
+            m.focus();
+        }
 
-            function insertNewLine() {
-                const m = document.getElementById('free-msg');
-                const start = m.selectionStart;
-                const end = m.selectionEnd;
-                const top = m.scrollTop;
-                m.value = m.value.substring(0, start) + "\n" + m.value.substring(end);
-                m.selectionStart = m.selectionEnd = start + 1;
-                m.scrollTop = top;
-                m.focus();
-            }
+        function execRestart(action) {
+            sendAction(action);
+            closeModal();
+        }
 
-            function execRestart(action) {
-                sendAction(action);
-                closeModal();
-            }
+        function scrollToBottom() {
+            // Pequeno delay para esperar o teclado abrir
+            setTimeout(() => {
+                window.scrollTo(0, document.body.scrollHeight);
+                document.getElementById('msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        }
 
-            function scrollToBottom() {
-                // Pequeno delay para esperar o teclado abrir
-                setTimeout(() => {
-                    window.scrollTo(0, document.body.scrollHeight);
-                    document.getElementById('msg').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 300);
-            }
+        // Garante que o layout se ajuste ao redimensionar (abertura do teclado)
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', () => {
+                document.body.style.height = window.visualViewport.height + 'px';
+            });
+        }
 
-            // Garante que o layout se ajuste ao redimensionar (abertura do teclado)
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', () => {
-                    document.body.style.height = window.visualViewport.height + 'px';
-                });
-            }
+        function openTouchpad() {
+            document.activeElement.blur(); // Tira o foco para esconder teclado
+            const overlay = document.getElementById('restart-modal');
+            overlay.style.display = 'flex';
+            const modal = document.querySelector('.modal');
+            modal.classList.add('full-width');
+            modal.style.height = '90vh';
+            modal.style.maxHeight = '90vh';
+            modal.style.padding = '15px';
+            const title = document.getElementById('modal-title');
+            if (title) title.style.display = 'none';
 
-            function openTouchpad() {
-                document.activeElement.blur(); // Tira o foco para esconder teclado
-                const overlay = document.getElementById('restart-modal');
-                overlay.style.display = 'flex';
-                const modal = document.querySelector('.modal');
-                modal.classList.add('full-width');
-                modal.style.height = '90vh';
-                modal.style.maxHeight = '90vh';
-                modal.style.padding = '15px';
-                const title = document.getElementById('modal-title');
-                if (title) title.style.display = 'none';
+            const mainCancel = document.getElementById('main-cancel-btn');
+            if (mainCancel) mainCancel.style.display = 'none';
 
-                const mainCancel = document.getElementById('main-cancel-btn');
-                if (mainCancel) mainCancel.style.display = 'none';
-
-                const content = document.getElementById('modal-content');
-                if (content) {
-                    content.classList.add('touchpad-active');
-                    content.style.display = 'flex';
-                    content.style.flexDirection = 'column';
-                    content.style.height = '100%';
-                    content.style.overflow = 'hidden';
-                    content.innerHTML = `
+            const content = document.getElementById('modal-content');
+            if (content) {
+                content.classList.add('touchpad-active');
+                content.style.display = 'flex';
+                content.style.flexDirection = 'column';
+                content.style.height = '100%';
+                content.style.overflow = 'hidden';
+                content.innerHTML = `
                         <div id="touch-area" style="flex: 1; background: #222; border-radius: 16px; border: 2px solid #3d3d45; touch-action: none; margin-bottom: 15px; position: relative; box-shadow: inset 0 0 20px rgba(0,0,0,0.5);">
                             <div style="position: absolute; top: 12px; left: 50%; transform: translateX(-50%); color: var(--primary); font-weight: 800; font-size: 12px; letter-spacing: 1.5px; opacity: 0.8; text-transform: uppercase;">TOUCHPAD</div>
                             <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #444; pointer-events: none; text-transform: uppercase; font-weight: bold; letter-spacing: 2px; font-size: 14px;">Area de Deslize</div>
@@ -1306,178 +1613,179 @@
                             <button class="modal-btn" onclick="toggleSensOverlay()" style="margin-top: 35px; width: 160px; background: #2563eb; font-weight: 800;">CONCLUÍDO</button>
                         </div>
                     `;
-                    setupTouchpad();
-                }
+                setupTouchpad();
+            }
+        }
+
+        function updateCustomScrollbar(el) {
+            const thumb = document.getElementById('custom-thumb');
+            if (!thumb) return;
+
+            const scrollHeight = el.scrollHeight;
+            const clientHeight = el.clientHeight;
+
+            if (scrollHeight <= clientHeight) {
+                thumb.style.display = 'none';
+                return;
+            } else {
+                thumb.style.display = 'block';
             }
 
-            function updateCustomScrollbar(el) {
-                const thumb = document.getElementById('custom-thumb');
-                if (!thumb) return;
-                
-                const scrollHeight = el.scrollHeight;
-                const clientHeight = el.clientHeight;
-                
-                if (scrollHeight <= clientHeight) {
-                    thumb.style.display = 'none';
-                    return;
-                } else {
-                    thumb.style.display = 'block';
+            const thumbHeight = Math.max((clientHeight / scrollHeight) * clientHeight, 20);
+            thumb.style.height = `${thumbHeight}px`;
+
+            const scrollRatio = el.scrollTop / (scrollHeight - clientHeight);
+            const maxThumbTop = clientHeight - thumbHeight;
+            const thumbTop = scrollRatio * maxThumbTop;
+
+            thumb.style.top = `${thumbTop}px`;
+        }
+
+        function setupTouchpad() {
+            const pad = document.getElementById('touch-area');
+            if (!pad) return;
+            let lastX = 0, lastY = 0;
+            let lastScrollY = 0;
+
+            let touchStartTime = 0;
+            let isMoved = false;
+            let longPressTimer = null;
+
+            pad.oncontextmenu = (e) => { e.preventDefault(); return false; };
+
+            pad.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                isMoved = false;
+                touchStartTime = Date.now();
+
+                if (e.touches.length === 1) {
+                    lastX = e.touches[0].clientX;
+                    lastY = e.touches[0].clientY;
+
+                    longPressTimer = setTimeout(() => {
+                        if (!isMoved) {
+                            sendMouseClick('RIGHT');
+                            window.navigator.vibrate && window.navigator.vibrate([30, 30]);
+                            longPressTimer = null;
+                            touchStartTime = 0; // Impede clique esquerdo no end
+                        }
+                    }, 600);
+                } else if (e.touches.length === 2) {
+                    lastScrollY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    if (longPressTimer) clearTimeout(longPressTimer);
                 }
-                
-                const thumbHeight = Math.max((clientHeight / scrollHeight) * clientHeight, 20);
-                thumb.style.height = `${thumbHeight}px`;
-                
-                const scrollRatio = el.scrollTop / (scrollHeight - clientHeight);
-                const maxThumbTop = clientHeight - thumbHeight;
-                const thumbTop = scrollRatio * maxThumbTop;
-                
-                thumb.style.top = `${thumbTop}px`;
-            }
+            }, { passive: false });
 
-            function setupTouchpad() {
-                const pad = document.getElementById('touch-area');
-                if (!pad) return;
-                let lastX = 0, lastY = 0;
-                let lastScrollY = 0;
-                
-                let touchStartTime = 0;
-                let isMoved = false;
-                let longPressTimer = null;
+            pad.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                if (e.touches.length === 1) {
+                    const curX = e.touches[0].clientX;
+                    const curY = e.touches[0].clientY;
+                    const dx = curX - lastX;
+                    const dy = curY - lastY;
 
-                pad.oncontextmenu = (e) => { e.preventDefault(); return false; };
-
-                pad.addEventListener('touchstart', (e) => {
-                    e.preventDefault();
-                    isMoved = false;
-                    touchStartTime = Date.now();
-
-                    if (e.touches.length === 1) {
-                        lastX = e.touches[0].clientX;
-                        lastY = e.touches[0].clientY;
-
-                        longPressTimer = setTimeout(() => {
-                            if (!isMoved) {
-                                sendMouseClick('RIGHT');
-                                window.navigator.vibrate && window.navigator.vibrate([30, 30]);
-                                longPressTimer = null;
-                                touchStartTime = 0; // Impede clique esquerdo no end
-                            }
-                        }, 600);
-                    } else if (e.touches.length === 2) {
-                        lastScrollY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                        if(longPressTimer) clearTimeout(longPressTimer);
-                    }
-                }, { passive: false });
-
-                pad.addEventListener('touchmove', (e) => {
-                    e.preventDefault();
-                    if (e.touches.length === 1) {
-                        const curX = e.touches[0].clientX;
-                        const curY = e.touches[0].clientY;
-                        const dx = curX - lastX;
-                        const dy = curY - lastY;
-                        
-                        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-                            isMoved = true;
-                            if(longPressTimer) {
-                                clearTimeout(longPressTimer);
-                                longPressTimer = null;
-                            }
-                        }
-
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ type: 'MOUSE_SIM', action: 'MOVE', dx: dx * sensitivity, dy: dy * sensitivity }));
-                        }
-                        
-                        lastX = curX;
-                        lastY = curY;
-                    } else if (e.touches.length === 2) {
+                    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
                         isMoved = true;
-                        const curScrollY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                        const dy = curScrollY - lastScrollY;
-                        if (ws && ws.readyState === WebSocket.OPEN) {
-                            ws.send(JSON.stringify({ type: 'MOUSE_SIM', action: 'SCROLL', dy: dy * -(sensitivity + 0.5) }));
-                        }
-                        lastScrollY = curScrollY;
-                    }
-                }, { passive: false });
-
-                pad.addEventListener('touchend', (e) => {
-                    if (longPressTimer) {
-                        clearTimeout(longPressTimer);
-                        longPressTimer = null;
-                    }
-
-                    if (!isMoved && touchStartTime > 0) {
-                        const duration = Date.now() - touchStartTime;
-                        if (duration < 300) {
-                            sendMouseClick('LEFT');
+                        if (longPressTimer) {
+                            clearTimeout(longPressTimer);
+                            longPressTimer = null;
                         }
                     }
+
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'MOUSE_SIM', action: 'MOVE', dx: dx * sensitivity, dy: dy * sensitivity }));
+                    }
+
+                    lastX = curX;
+                    lastY = curY;
+                } else if (e.touches.length === 2) {
+                    isMoved = true;
+                    const curScrollY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    const dy = curScrollY - lastScrollY;
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'MOUSE_SIM', action: 'SCROLL', dy: dy * -(sensitivity + 0.5) }));
+                    }
+                    lastScrollY = curScrollY;
+                }
+            }, { passive: false });
+
+            pad.addEventListener('touchend', (e) => {
+                if (longPressTimer) {
+                    clearTimeout(longPressTimer);
+                    longPressTimer = null;
+                }
+
+                if (!isMoved && touchStartTime > 0) {
+                    const duration = Date.now() - touchStartTime;
+                    if (duration < 300) {
+                        sendMouseClick('LEFT');
+                    }
+                }
+            });
+        }
+
+        function sendMouseClick(btn) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'MOUSE_SIM', action: 'CLICK', button: btn }));
+                window.navigator.vibrate && window.navigator.vibrate(15);
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Erro ao entrar em fullscreen: ${err.message}`);
                 });
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
             }
+        }
 
-            function sendMouseClick(btn) {
-                if(ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'MOUSE_SIM', action: 'CLICK', button: btn }));
-                    window.navigator.vibrate && window.navigator.vibrate(15);
-                }
-            }
+        function toggleSensOverlay() {
+            const overlay = document.getElementById('sens-settings-overlay');
+            if (!overlay) return;
+            const isVisible = overlay.style.display === 'flex';
+            overlay.style.display = isVisible ? 'none' : 'flex';
+        }
 
-            function toggleFullscreen() {
-                if (!document.fullscreenElement) {
-                    document.documentElement.requestFullscreen().catch(err => {
-                        console.error(`Erro ao entrar em fullscreen: ${err.message}`);
-                    });
+        async function uploadPrint(input) {
+            if (!input.files || !input.files[0]) return;
+
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('image', file);
+
+            const statusText = document.getElementById('status-text');
+            const oldStatus = statusText ? statusText.innerText : '';
+            if (statusText) statusText.innerText = 'ENVIANDO PRINT...';
+
+            try {
+                const response = await fetch('/upload-print', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                if (result.success) {
+                    if (statusText) statusText.innerText = '✅ PRINT ANEXADO!';
+                    window.navigator.vibrate && window.navigator.vibrate([30, 30]);
+                    closeModal();
                 } else {
-                    if (document.exitFullscreen) document.exitFullscreen();
+                    if (statusText) statusText.innerText = '❌ ERRO NO UPLOAD';
                 }
+            } catch (err) {
+                if (statusText) statusText.innerText = '❌ FALHA NA CONEXÃO';
+                console.error(err);
             }
 
-            function toggleSensOverlay() {
-                const overlay = document.getElementById('sens-settings-overlay');
-                if (!overlay) return;
-                const isVisible = overlay.style.display === 'flex';
-                overlay.style.display = isVisible ? 'none' : 'flex';
-            }
+            setTimeout(() => {
+                if (statusText) statusText.innerText = oldStatus;
+                input.value = ''; // Reseta o input
+            }, 2000);
+        }
 
-            async function uploadPrint(input) {
-                if (!input.files || !input.files[0]) return;
-                
-                const file = input.files[0];
-                const formData = new FormData();
-                formData.append('image', file);
-                
-                const statusText = document.getElementById('status-text');
-                const oldStatus = statusText ? statusText.innerText : '';
-                if (statusText) statusText.innerText = 'ENVIANDO PRINT...';
-                
-                try {
-                    const response = await fetch('/upload-print', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        if (statusText) statusText.innerText = '✅ PRINT ANEXADO!';
-                        window.navigator.vibrate && window.navigator.vibrate([30, 30]);
-                        closeModal();
-                    } else {
-                        if (statusText) statusText.innerText = '❌ ERRO NO UPLOAD';
-                    }
-                } catch (err) {
-                    if (statusText) statusText.innerText = '❌ FALHA NA CONEXÃO';
-                    console.error(err);
-                }
-                
-                setTimeout(() => {
-                    if (statusText) statusText.innerText = oldStatus;
-                    input.value = ''; // Reseta o input
-                }, 2000);
-            }
+        connect();
+    </script>
+    <input type="file" id="print-input" accept="image/*" style="display:none" onchange="uploadPrint(this)">
+</body>
 
-            connect();
-        </script>
-        <input type="file" id="print-input" accept="image/*" style="display:none" onchange="uploadPrint(this)">
-    </body>
-    </html>
+</html>

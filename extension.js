@@ -1,4 +1,4 @@
-const vscode = require('vscode');
+﻿const vscode = require('vscode');
 const WebSocket = require('ws');
 const http = require('http');
 const os = require('os');
@@ -35,8 +35,11 @@ let cdpConnection = null;
 let cdpWs = null;
 const CDP_PORTS = [9000, 9222, 9223, 9224];
 let cdpIdCounter = 1;
+let cdpTargets = [];
+let selectedTargetIndex = 0;
 
 async function discoverAntigravityCDP() {
+    cdpTargets = [];
     for (const port of CDP_PORTS) {
         try {
             const resp = await fetch(`http://127.0.0.1:${port}/json/list`);
@@ -45,20 +48,23 @@ async function discoverAntigravityCDP() {
             const agTargets = targets.filter(t => {
                 const title = t.title?.toLowerCase() || '';
                 const url = t.url?.toLowerCase() || '';
-                return title.includes('antigravity') || 
-                       url.includes('workbench') || 
-                       url.includes('jetski');
+                // Inclui só antigravity (exceto launchpad)
+                const isLaunchpad = title.includes('launchpad');
+                const isValid = title.includes('antigravity') || 
+                              url.includes('workbench') || 
+                              url.includes('jetski');
+                return isValid && !isLaunchpad;
             });
             
             if (agTargets.length > 0) {
-                outputChannel.appendLine(`🔍 CDP: Encontrou ${agTargets.length} instância(s) na porta ${port}`);
-                return agTargets;
+                outputChannel.appendLine(`🔍 CDP: Encontrou ${agTargets.length} alvo(s) na porta ${port}`);
+                cdpTargets = [...cdpTargets, ...agTargets];
             }
         } catch(e) {
             // Porta não disponível
         }
     }
-    return [];
+    return cdpTargets;
 }
 
 async function connectCDP(wsUrl) {
@@ -84,7 +90,7 @@ async function connectCDP(wsUrl) {
             });
             
             cdpWs.on('error', (err) => {
-                outputChannel.appendLine(`⚠️ CDP WS Error: ${err.message}`);
+                outputChannel.appendLine(`âš ï¸ CDP WS Error: ${err.message}`);
             });
             
             cdpWs.on('close', () => {
@@ -98,6 +104,20 @@ async function connectCDP(wsUrl) {
         
         cdpWs.on('error', reject);
     });
+}
+
+function getSelectedTarget() {
+    if (cdpTargets.length === 0) return null;
+    const idx = selectedTargetIndex % cdpTargets.length;
+    return cdpTargets[idx];
+}
+
+function getTargetListForUI() {
+    return cdpTargets.map((t, i) => ({
+        index: i,
+        title: t.title || `Chat ${i + 1}`,
+        selected: i === selectedTargetIndex
+    }));
 }
 
 async function callCDP(method, params = {}) {
@@ -131,21 +151,22 @@ async function testCDPConnection() {
     const targets = await discoverAntigravityCDP();
     
     if (targets.length === 0) {
-        outputChannel.appendLine(`❌ CDP: Nenhuma instância do Antigravity encontrada`);
-        outputChannel.appendLine(`   → Inicie o Antigravity com: antigravity . --remote-debugging-port=9000`);
+        outputChannel.appendLine(`âŒ CDP: Nenhuma instÃ¢ncia do Antigravity encontrada`);
+        outputChannel.appendLine(`   â†’ Inicie o Antigravity com: antigravity . --remote-debugging-port=9000`);
         return;
     }
     
-    outputChannel.appendLine(`📋 CDP: target = "${targets[0].title}"`);
+    const target = getSelectedTarget();
+    outputChannel.appendLine(`📋 CDP: target = "${target?.title}" (${selectedTargetIndex + 1}/${targets.length})`);
     
     try {
-        await connectCDP(targets[0].webSocketDebuggerUrl);
+        await connectCDP(target.webSocketDebuggerUrl);
         
         await callCDP('Runtime.enable', {});
         
         outputChannel.appendLine(`✅ CDP: Conexão estabelecida com sucesso!`);
     } catch(e) {
-        outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
+        outputChannel.appendLine(`âŒ CDP Erro: ${e.message}`);
     }
 }
 
@@ -153,16 +174,18 @@ async function injectMessageViaCDP(text, retryCount = 0) {
     const MAX_RETRIES = 2;
     
     if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
-        outputChannel.appendLine(`⚠️ CDP: Não conectado, tentanto reconectar...`);
+        outputChannel.appendLine(`âš ï¸ CDP: Não conectado, tentanto reconectar...`);
         const targets = await discoverAntigravityCDP();
         if (targets.length === 0) {
             throw new Error('Antigravity não encontrado');
         }
-        await connectCDP(targets[0].webSocketDebuggerUrl);
+        const target = getSelectedTarget();
+        await connectCDP(target.webSocketDebuggerUrl);
         await callCDP('Runtime.enable', {});
     }
     
-    outputChannel.appendLine(`💬 CDP: Injetando "${text.substring(0, 30)}..."`);
+    const target = getSelectedTarget();
+    outputChannel.appendLine(`💬 CDP: Injetando "${text.substring(0, 30)}..." no ${target?.title}`);
     
     const safeText = JSON.stringify(text);
     
@@ -237,7 +260,7 @@ async function injectMessageViaCDP(text, retryCount = 0) {
             outputChannel.appendLine(`✅ CDP: Enviado (${value.method})`);
             return true;
         } else {
-            outputChannel.appendLine(`❌ CDP: ${value?.reason || 'erro desconhecido'}`);
+            outputChannel.appendLine(`âŒ CDP: ${value?.reason || 'erro desconhecido'}`);
             
             // Retry se falhar
             if (retryCount < MAX_RETRIES) {
@@ -248,7 +271,7 @@ async function injectMessageViaCDP(text, retryCount = 0) {
             return false;
         }
     } catch(e) {
-        outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
+        outputChannel.appendLine(`âŒ CDP Erro: ${e.message}`);
         
         // Retry se der erro de conexão
         if (retryCount < MAX_RETRIES && (e.message.includes('timeout') || e.message.includes('ECONNREFUSED'))) {
@@ -267,12 +290,15 @@ async function checkForAttachedImage() {
     if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
         const targets = await discoverAntigravityCDP();
         if (targets.length === 0) return null;
-        await connectCDP(targets[0].webSocketDebuggerUrl);
+        const target = getSelectedTarget();
+        await connectCDP(target.webSocketDebuggerUrl);
         await callCDP('Runtime.enable', {});
     }
     
+    const target = getSelectedTarget();
+    outputChannel.appendLine(`ðŸ–¼ï¸ CDP: Verificando imagem em ${target?.title}`);
+    
     const CHECK_SCRIPT = `(async () => {
-        // Procura por elementos de imagem anexados预览
         const imageSelectors = [
             'img[src^="blob:"]',
             'div[data-attached="true"] img',
@@ -289,7 +315,6 @@ async function checkForAttachedImage() {
             }
         }
         
-        // Procura por divs com imagens dentro do input
         const inputContainer = document.querySelector('[data-lexical-editor="true"]')?.closest('div');
         if (inputContainer) {
             const images = inputContainer.querySelectorAll('img');
@@ -310,13 +335,13 @@ async function checkForAttachedImage() {
         
         return result.result?.value;
     } catch(e) {
-        outputChannel.appendLine(`⚠️ CDP check image error: ${e.message}`);
+        outputChannel.appendLine(`âš ï¸ CDP check image error: ${e.message}`);
         return null;
     }
 }
 
 async function injectImageAttachment(imagePath) {
-    outputChannel.appendLine(`🖼️ CDP: Injetando imagem...`);
+    outputChannel.appendLine(`ðŸ–¼ï¸ CDP: Injetando imagem...`);
     
     try {
         await callCDP('Page.enable', {});
@@ -324,7 +349,6 @@ async function injectImageAttachment(imagePath) {
         await callCDP('Page.setInterceptFileChooserDialog', { enabled: true });
         
         const INJECT_SCRIPT = `(async () => {
-            // Clica em "Add context" ou similar
             const addBtn = Array.from(document.querySelectorAll('div, button'))
                 .find(el => (el.innerText || '').toLowerCase().includes('add context'));
             
@@ -341,7 +365,6 @@ async function injectImageAttachment(imagePath) {
                 }
             }
             
-            // Procura input[type="file"]
             const inputs = Array.from(document.querySelectorAll('input[type="file"]'));
             const input = inputs.find(i => i.offsetParent !== null) || inputs[0];
             
@@ -361,20 +384,19 @@ async function injectImageAttachment(imagePath) {
         
         const value = result.result?.value;
         if (value?.ok) {
-            // Define o arquivo no input
             await callCDP('DOM.setFileInputFiles', {
                 files: [imagePath],
                 objectId: value.id
             });
             
-            outputChannel.appendLine(`✅ CDP: Imagem injetada`);
+outputChannel.appendLine(`✅ CDP: Imagem injetada`);
             return true;
         }
         
-        outputChannel.appendLine(`❌ CDP: ${value?.reason}`);
+        outputChannel.appendLine(`âŒ CDP: ${value?.reason}`);
         return false;
     } catch(e) {
-        outputChannel.appendLine(`❌ CDP inject image error: ${e.message}`);
+        outputChannel.appendLine(`âŒ CDP inject image error: ${e.message}`);
         return false;
     }
 }
@@ -386,7 +408,7 @@ function loadExclusions() {
             WINDOW_EXCLUSION_LIST = JSON.parse(data);
         }
     } catch (e) {
-        if (outputChannel) outputChannel.appendLine(`Erro ao carregar exclusões: ${e.message}`);
+        if (outputChannel) outputChannel.appendLine(`Erro ao carregar exclusÃµes: ${e.message}`);
     }
 }
 
@@ -408,7 +430,7 @@ function loadHistory() {
             // Ordena por data (mais antigo primeiro)
             history.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-            // Limita as últimas 50 mensagens
+            // Limita as Ãºltimas 50 mensagens
             if (history.length > 50) history = history.slice(history.length - 50);
         } else {
             history = [];
@@ -436,7 +458,7 @@ async function activate(context) {
     // Teste de conexão CDP
     setTimeout(() => testCDPConnection(), 2000);
     
-    // Setup do State Manager Daemon em Background para Alt-Tab Instantâneo
+    // Setup do State Manager Daemon em Background para Alt-Tab InstantÃ¢neo
     const psDaemonPath = path.join(os.tmpdir(), "antigravity_daemon.ps1");
     const daemonScript = `
 Add-Type @"
@@ -529,7 +551,7 @@ while ($true) {
                 devWindow.bringToTop();
             }
         } catch (e) {
-            outputChannel.appendLine(`⚠️ Erro ao tentar focar janela de dev: ${e.message}`);
+            outputChannel.appendLine(`âš ï¸ Erro ao tentar focar janela de dev: ${e.message}`);
         }
     }, 1500);
     
@@ -585,7 +607,7 @@ while ($true) {
             
             form.parse(req, (err, fields, files) => {
                 if (err) {
-                    outputChannel.appendLine(`❌ Erro no Formidable: ${err.message}`);
+                    outputChannel.appendLine(`âŒ Erro no Formidable: ${err.message}`);
                     res.writeHead(500); res.end(JSON.stringify({ error: err.message }));
                     return;
                 }
@@ -593,7 +615,7 @@ while ($true) {
                 try {
                     const file = (files.image && files.image[0]) ? files.image[0] : files.image;
                     if (!file) {
-                        outputChannel.appendLine(`⚠️ Nenhum arquivo 'image' encontrado no upload.`);
+                        outputChannel.appendLine(`âš ï¸ Nenhum arquivo 'image' encontrado no upload.`);
                         res.writeHead(400); res.end(JSON.stringify({ error: 'No image found' }));
                         return;
                     }
@@ -603,18 +625,18 @@ while ($true) {
                     
                     fs.copyFileSync(oldPath, newPath);
                     
-                    // Mágica Instantânea: PowerShell para Clipboard + Ctrl+V
+                    // Mágica InstantÃ¢nea: PowerShell para Clipboard + Ctrl+V
                     const psCommand = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $img = [System.Drawing.Image]::FromFile('${newPath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose(); (New-Object -ComObject WScript.Shell).SendKeys('^v')"`;
                     
                     require('child_process').exec(psCommand, (psErr) => {
-                        if (psErr) outputChannel.appendLine(`⚠️ Erro no Clipboard: ${psErr.message}`);
+                        if (psErr) outputChannel.appendLine(`âš ï¸ Erro no Clipboard: ${psErr.message}`);
                     });
 
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ success: true }));
                     outputChannel.appendLine(`📸 Print recebido e injetado no foco!`);
                 } catch (parseErr) {
-                    outputChannel.appendLine(`❌ Erro ao processar arquivo: ${parseErr.message}`);
+                    outputChannel.appendLine(`âŒ Erro ao processar arquivo: ${parseErr.message}`);
                     res.writeHead(500); res.end(JSON.stringify({ error: parseErr.message }));
                 }
             });
@@ -640,7 +662,7 @@ while ($true) {
                     try {
                         fs.unlinkSync(filePath);
                     } catch (err) {
-                        outputChannel.appendLine(`⚠️ Erro ao deletar arquivo temporário: ${err.message}`);
+                        outputChannel.appendLine(`âš ï¸ Erro ao deletar arquivo temporário: ${err.message}`);
                     }
                 });
                 outputChannel.appendLine(`🧹 Limpeza automática: Pasta de prints limpa!`);
@@ -670,6 +692,229 @@ while ($true) {
                     ws.send(JSON.stringify({ type: 'COMMAND', action: 'REFRESH' }));
                 } else {
                     outputChannel.appendLine("✨ Nova sessão iniciada no celular.");
+                }
+                return;
+            }
+            
+            // GET_TARGETS - Lista chats disponibles
+            if (data.type === 'GET_TARGETS') {
+                await discoverAntigravityCDP();
+                ws.send(JSON.stringify({
+                    type: 'TARGETS',
+                    targets: cdpTargets.map(t => ({ title: t.title })),
+                    selectedIndex: selectedTargetIndex
+                }));
+                return;
+            }
+            
+            // SELECT_TARGET - Escolhe chat ativo
+            if (data.type === 'SELECT_TARGET') {
+                selectedTargetIndex = data.index;
+                const target = getSelectedTarget();
+                outputChannel.appendLine(`🎯 Alternando para Chat: ${target?.title}`);
+                
+                // Fecha conexão anterior se existir
+                if (cdpWs) {
+                    try { cdpWs.close(); } catch(e) {}
+                }
+                cdpWs = null;
+                cdpConnection = null;
+                
+                // Conecta ao novo alvo imediatamente
+                if (target && target.webSocketDebuggerUrl) {
+                    try {
+                        await connectCDP(target.webSocketDebuggerUrl);
+                        await callCDP('Runtime.enable', {});
+                        outputChannel.appendLine(`✅ CDP: Reconectado ao novo alvo.`);
+                    } catch(e) {
+                        outputChannel.appendLine(`❌ CDP: Erro ao reconectar: ${e.message}`);
+                    }
+                }
+                return;
+            }
+            
+            // GET_MODELS - Lista modelos disponíveis (Scraping via CDP)
+            if (data.type === 'GET_MODELS') {
+                // Garante que o CDP está conectado antes de buscar modelos
+                if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
+                    outputChannel.appendLine(`🔄 CDP: Reconectando para buscar modelos...`);
+                    const targets = await discoverAntigravityCDP();
+                    const target = getSelectedTarget();
+                    if (target) {
+                        try {
+                            await connectCDP(target.webSocketDebuggerUrl);
+                            await callCDP('Runtime.enable', {});
+                        } catch(e) {
+                            outputChannel.appendLine(`❌ Erro na reconexão CDP: ${e.message}`);
+                        }
+                    }
+                }
+                
+                outputChannel.appendLine(`🔍 CDP: Buscando modelos...`);
+                
+                const GET_MODELS_SCRIPT = `(async () => {
+                    const modelWords = ['Gemini', 'Claude', 'gpt', 'Sonnet', 'Pro', 'Flash', 'Haiku', 'Llama', 'O1', 'O3', 'DeepSeek'];
+                    
+                    // 1. Encontrar o botão do seletor
+                    const allBtns = Array.from(document.querySelectorAll('button, [role="button"]'));
+                    const modelBtn = allBtns.find(btn => {
+                        const id = (btn.id || '').toLowerCase();
+                        const text = (btn.innerText || btn.textContent || '').trim();
+                        const isModelId = id.includes('headlessui-popover-button') || id.includes('headlessui-menu-button') || id.includes('model-selector');
+                        const hasModelText = modelWords.some(w => text.toLowerCase().includes(w.toLowerCase()));
+                        return (isModelId && hasModelText) || (hasModelText && btn.offsetParent !== null && (id.includes('headlessui') || btn.className.includes('rounded')));
+                    });
+                    
+                    if (!modelBtn) return { error: 'model_button_not_found' };
+                    
+                    const currentModel = (modelBtn.innerText || modelBtn.textContent || '').trim();
+                    
+                    // 2. Clicar no botão para abrir o menu
+                    modelBtn.click();
+                    
+                    // 3. Esperar o menu aparecer
+                    await new Promise(r => setTimeout(r, 600));
+                    
+                    // 4. Encontrar os itens do menu
+                    const menuItems = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"], button, a'))
+                        .filter(el => {
+                            const text = (el.innerText || el.textContent || '').trim();
+                            const isVisible = el.offsetParent !== null;
+                            const isNotTheSameButton = el !== modelBtn;
+                            
+                            const modelNames = ['gemini', 'claude', 'gpt', 'sonnet', 'pro', 'flash', 'haiku', 'llama', 'o1', 'o3', 'deepseek', 'opus', 'ultra', '4o'];
+                            const excludeWords = ['settings', 'manage', 'config', 'ajuda', 'help', 'feedback', 'history', 'novo chat', 'new chat', 'personalizar', 'projeto', 'problem', 'credits', 'créditos'];
+                            
+                            const lowText = text.toLowerCase();
+                            const hasModelWord = modelNames.some(w => {
+                                // Para termos curtos como 'pro', exige que seja palavra inteira para não bater em 'projeto' ou 'problems'
+                                if (w === 'pro' || w === 'gpt' || w === 'o1' || w === 'o3') {
+                                    return new RegExp('\\b' + w + '\\b', 'i').test(lowText);
+                                }
+                                return lowText.includes(w);
+                            });
+                            const hasExcludeWord = excludeWords.some(w => lowText.includes(w));
+                            
+                            return isVisible && isNotTheSameButton && hasModelWord && !hasExcludeWord && text.length < 60;
+                        })
+                        .map(el => (el.innerText || el.textContent || '').trim())
+                        .filter(text => text.length > 0);
+                    
+                    // 5. Tentar fechar o menu clicando no botão novamente (se for toggle) ou clicando fora
+                    // Mas para garantir que não quebre a seleção posterior, apenas clicamos no botão de novo se ele ainda for o principal
+                    // modelBtn.click(); 
+                    
+                    const models = [...new Set(menuItems)];
+                    const selectedIndex = models.indexOf(currentModel);
+                    
+                    return { models, selectedIndex: selectedIndex >= 0 ? selectedIndex : 0 };
+                })()`;
+
+                try {
+                    const result = await callCDP('Runtime.evaluate', {
+                        expression: GET_MODELS_SCRIPT,
+                        returnByValue: true,
+                        awaitPromise: true
+                    });
+                    
+                    const value = result.result?.value;
+                    if (value && value.models) {
+                        outputChannel.appendLine(`✅ CDP: Encontrados ${value.models.length} modelos`);
+                        ws.send(JSON.stringify({
+                            type: 'MODELS',
+                            models: value.models,
+                            selectedIndex: value.selectedIndex
+                        }));
+                    } else {
+                        outputChannel.appendLine(`❌ CDP: Não foi possível encontrar modelos (${value?.error || 'erro desconhecido'})`);
+                        ws.send(JSON.stringify({
+                            type: 'MODELS',
+                            models: ['Nenhum modelo detectado'],
+                            selectedIndex: 0
+                        }));
+                    }
+                } catch(e) {
+                    outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
+                }
+                return;
+            }
+            
+            // SELECT_MODEL - Escolhe modelo no desktop
+            if (data.type === 'SELECT_MODEL') {
+                const modelName = data.modelName;
+                
+                // Garante que o CDP está conectado
+                if (!cdpWs || cdpWs.readyState !== WebSocket.OPEN) {
+                    outputChannel.appendLine(`🔄 CDP: Reconectando para selecionar modelo...`);
+                    const targets = await discoverAntigravityCDP();
+                    const target = getSelectedTarget();
+                    if (target) {
+                        try {
+                            await connectCDP(target.webSocketDebuggerUrl);
+                            await callCDP('Runtime.enable', {});
+                        } catch(e) {
+                            outputChannel.appendLine(`❌ Erro na reconexão CDP: ${e.message}`);
+                        }
+                    }
+                }
+                
+                outputChannel.appendLine(`🤖 CDP: Selecionando modelo "${modelName}"`);
+                
+                const SELECT_MODEL_SCRIPT = `(async () => {
+                    const targetModel = ${JSON.stringify(modelName)};
+                    const modelWords = ['Gemini', 'Claude', 'gpt', 'Sonnet', 'Pro', 'Flash', 'Haiku', 'Llama', 'O1', 'O3', 'DeepSeek'];
+                    
+                    // 1. Abrir menu
+                    const allBtns = Array.from(document.querySelectorAll('button, [role="button"]'));
+                    const modelBtn = allBtns.find(btn => {
+                        const id = (btn.id || '').toLowerCase();
+                        const text = (btn.innerText || btn.textContent || '').trim();
+                        const isModelId = id.includes('headlessui-popover-button') || id.includes('headlessui-menu-button') || id.includes('model-selector');
+                        const hasModelText = modelWords.some(w => text.toLowerCase().includes(w.toLowerCase()));
+                        return (isModelId && hasModelText) || (hasModelText && btn.offsetParent !== null && (id.includes('headlessui') || btn.className.includes('rounded')));
+                    });
+                    
+                    if (!modelBtn) return { error: 'model_button_not_found' };
+                    
+                    // Se o menu já estiver aberto (itens visíveis), não clicamos no botão
+                    const existingItems = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"]'))
+                        .filter(el => el.offsetParent !== null);
+                    
+                    if (existingItems.length === 0) {
+                        modelBtn.click();
+                        await new Promise(r => setTimeout(r, 500));
+                    }
+                    
+                    // 2. Encontrar e clicar no modelo
+                    const items = Array.from(document.querySelectorAll('[role="menuitem"], [role="option"], button, a'))
+                        .filter(el => {
+                            const text = (el.innerText || el.textContent || '').trim();
+                            return text === targetModel && el.offsetParent !== null;
+                        });
+                    
+                    if (items.length > 0) {
+                        items[0].click();
+                        return { ok: true };
+                    }
+                    
+                    return { ok: false, reason: 'model_not_found' };
+                })()`;
+
+                try {
+                    const result = await callCDP('Runtime.evaluate', {
+                        expression: SELECT_MODEL_SCRIPT,
+                        returnByValue: true,
+                        awaitPromise: true
+                    });
+                    
+                    const value = result.result?.value;
+                    if (value?.ok) {
+                        outputChannel.appendLine(`✅ CDP: Modelo "${modelName}" selecionado!`);
+                    } else {
+                        outputChannel.appendLine(`❌ CDP: Falha ao selecionar modelo (${value?.reason || 'erro'})`);
+                    }
+                } catch(e) {
+                    outputChannel.appendLine(`❌ CDP Erro: ${e.message}`);
                 }
                 return;
             }
@@ -791,21 +1036,22 @@ while ($true) {
                         outputChannel.appendLine(`🔄 Reiniciando Extensão (Debug)...`);
                         try {
                             const allWindows = windowManager.getWindows();
-                            // Procura especificamente por "android-bridge - Antigravity" (EDH)
-                            const devHostWindow = allWindows.find(w => 
-                                w.getTitle().includes("android-bridge") && 
-                                w.getTitle().includes("Antigravity")
-                            );
+                            // Procura especificamente por "android-bridge" E "Antigravity" no título
+                            const devHostWindow = allWindows.find(w => {
+                                const title = w.getTitle();
+                                return title.includes("android-bridge") && title.includes("Antigravity");
+                            });
                             
                             if (devHostWindow) {
                                 outputChannel.appendLine(`🎯 Janela destino: ${devHostWindow.getTitle()}`);
                                 devHostWindow.bringToTop();
+                                // Delay maior para garantir que a janela recebeu o foco antes do comando
                                 setTimeout(async () => {
                                     await keyboard.pressKey(Key.LeftControl, Key.LeftShift, Key.F5);
                                     await keyboard.releaseKey(Key.LeftControl, Key.LeftShift, Key.F5);
-                                }, 500);
+                                }, 800);
                             } else {
-                                outputChannel.appendLine(`❌ Janela android-bridge Antigravity não encontrada`);
+                                outputChannel.appendLine(`❌ Janela [android-bridge + Antigravity] não encontrada`);
                             }
                         } catch (err) {
                             outputChannel.appendLine(`❌ Erro ao restart: ${err.message}`);
@@ -845,10 +1091,10 @@ while ($true) {
 
                             uniqueWindows.sort((a, b) => a.title.localeCompare(b.title));
 
-                            outputChannel.appendLine(`🪟 Alt-Tab: Encontradas ${uniqueWindows.length} janelas reais instataneamente.`);
+                            outputChannel.appendLine(`🪟 Alt-Tab: Encontradas ${uniqueWindows.length} janelas reais instantaneamente.`);
                             ws.send(JSON.stringify({ type: 'WINDOWS_LIST', payload: uniqueWindows }));
                         } catch (e) {
-                            outputChannel.appendLine(`⚠️ Erro ao listar janelas nativas: ${e.message}`);
+                            outputChannel.appendLine(`âš ï¸ Erro ao listar janelas nativas: ${e.message}`);
                         }
                         return;
                     }
@@ -873,13 +1119,13 @@ while ($true) {
                             
                             vscode.window.setStatusBarMessage(`✅ Focando: ${data.title}`, 2000);
                         } catch (e) {
-                            outputChannel.appendLine(`⚠️ Erro ao focar janela: ${e.message}`);
+                            outputChannel.appendLine(`âš ï¸ Erro ao focar janela: ${e.message}`);
                         }
                         return;
                     }
                     
                     if (actionLabel) {
-                        outputChannel.appendLine(`⌨️ Ação: ${actionLabel}`);
+                        outputChannel.appendLine(`⌨️ï¸ Ação: ${actionLabel}`);
                         vscode.window.setStatusBarMessage(`✅ Comando enviado: ${actionLabel}`, 2000);
                     }
                     return;
@@ -912,7 +1158,7 @@ while ($true) {
                 if (data.type === 'FREE_TEXT') {
                     const msg = data.msg;
                     if (!msg) return;
-                    outputChannel.appendLine(`⌨️ Digitação Livre: "${msg}"`);
+                    outputChannel.appendLine(`⌨️ï¸ Digitação Livre: "${msg}"`);
                     
                     // Envia o texto via clipboard + paste para ser mais rápido e preciso no foco atual
                     await vscode.env.clipboard.writeText(msg);
