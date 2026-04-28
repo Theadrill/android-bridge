@@ -97,13 +97,8 @@ async function ensureScrapingActive() {
                         const blocks = Array.from(chatContainer.querySelectorAll(':scope > div'));
                         if (blocks.length === 0) return;
                         
-                        // Captura os dois últimos blocos para garantir que pergunta e resposta apareçam
-                        let html = '';
-                        if (blocks.length >= 2) {
-                            html = blocks[blocks.length - 2].outerHTML + blocks[blocks.length - 1].outerHTML;
-                        } else {
-                            html = blocks[blocks.length - 1].outerHTML;
-                        }
+                        // Captura TODOS os blocos para o histórico completo aparecer no celular
+                        const html = blocks.map(b => b.outerHTML).join('');
                         
                         console.log("ANTIGRAVITY_STATUS:" + (getStatus() ? "GENERATING" : "IDLE"));
                         console.log("ANTIGRAVITY_STREAM_RESPONSE:" + html);
